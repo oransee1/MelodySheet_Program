@@ -98,7 +98,7 @@ class RenderThread(QThread):
     log_signal = pyqtSignal(str)
     finished_signal = pyqtSignal(bool, str)
 
-    def __init__(self, pdf_path, audio_path, output_path, title, artist, sync_mode, midi_path=None):
+    def __init__(self, pdf_path, audio_path, output_path, title, artist, sync_mode, midi_path=None, fps=120):
         super().__init__()
         self.pdf_path = pdf_path
         self.audio_path = audio_path
@@ -107,6 +107,7 @@ class RenderThread(QThread):
         self.artist = artist
         self.sync_mode = sync_mode
         self.midi_path = midi_path
+        self.fps = fps
 
     def run(self):
         try:
@@ -121,6 +122,7 @@ class RenderThread(QThread):
                 artist=self.artist,
                 sync_mode=self.sync_mode,
                 midi_path=self.midi_path,
+                fps=self.fps,
                 progress_callback=lambda p: self.progress_signal.emit(p),
                 log_callback=lambda msg: self.log_signal.emit(msg)
             )
@@ -234,6 +236,18 @@ class MainWindow(QMainWindow):
         row_meta2.addWidget(self.combo_sync)
         layout_meta.addLayout(row_meta2)
 
+        row_meta3 = QHBoxLayout()
+        row_meta3.addWidget(QLabel("프레임레이트:"))
+        self.combo_fps = QComboBox()
+        self.combo_fps.addItems([
+            "120 fps (빠른 커서 구간, 권장)",
+            "60 fps (중간)",
+            "30 fps (가벼움, 예전 기본)",
+        ])
+        self.combo_fps.setCurrentIndex(0)
+        row_meta3.addWidget(self.combo_fps)
+        layout_meta.addLayout(row_meta3)
+
         layout.addWidget(grp_meta)
 
         # 3. 렌더링 실행 및 진행 상태
@@ -253,32 +267,53 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(main_widget)
 
+    def _first_existing(self, candidates):
+        for path in candidates:
+            if path and os.path.isfile(path):
+                return path
+        return ""
+
     def auto_fill_default_paths(self):
         downloads_dir = os.path.expanduser("~/Downloads")
         desktop_dir = os.path.expanduser("~/Desktop")
-        
-        # 다운로드 및 바탕화면 파일 탐색
-        default_audio = os.path.join(downloads_dir, "Sunday Slow Motion.mp3")
-        if not os.path.exists(default_audio):
-            default_audio = os.path.join(desktop_dir, "Sunday Slow Motion.mp3")
-            
-        default_sheet = os.path.join(downloads_dir, "Sunday Slow Motion.pdf")
-        if not os.path.exists(default_sheet):
-            default_sheet = os.path.join(desktop_dir, "Sunday Slow Motion.pdf")
-            
-        default_midi = os.path.join(downloads_dir, "Sunday Slow Motion.mid")
-        
-        today_str = datetime.now().strftime("%Y-%m-%d")
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        input_today = os.path.join(base_dir, "InputData", today_str)
+        input_01 = os.path.join(input_today, "Input01")
+        sample_dir = os.path.join(base_dir, "Sample")
+
+        def named(folder, ext):
+            return os.path.join(folder, f"Sunday Slow Motion{ext}")
+
+        default_audio = self._first_existing([
+            named(input_01, ".mp3"),
+            named(input_today, ".mp3"),
+            named(sample_dir, ".mp3"),
+            named(downloads_dir, ".mp3"),
+            named(desktop_dir, ".mp3"),
+        ])
+        default_sheet = self._first_existing([
+            named(input_01, ".pdf"),
+            named(input_today, ".pdf"),
+            named(sample_dir, ".pdf"),
+            named(downloads_dir, ".pdf"),
+            named(desktop_dir, ".pdf"),
+        ])
+        default_midi = self._first_existing([
+            named(input_01, ".mid"),
+            named(input_today, ".mid"),
+            named(downloads_dir, ".mid"),
+        ])
+
         output_dir = os.path.join(base_dir, "Output", today_str)
         os.makedirs(output_dir, exist_ok=True)
         default_output = os.path.join(output_dir, "Sunday_Slow_Motion_SheetVideo.mp4")
 
-        if os.path.exists(default_audio):
+        if default_audio:
             self.txt_audio.setText(default_audio)
-        if os.path.exists(default_sheet):
+        if default_sheet:
             self.txt_sheet.setText(default_sheet)
-        if os.path.exists(default_midi):
+        if default_midi:
             self.txt_midi.setText(default_midi)
         self.txt_output.setText(default_output)
 
@@ -313,6 +348,7 @@ class MainWindow(QMainWindow):
         title = self.txt_title.text().strip()
         artist = self.txt_artist.text().strip()
         sync_mode = "klangio" if self.combo_sync.currentIndex() == 0 else "scroll"
+        fps = (120, 60, 30)[min(self.combo_fps.currentIndex(), 2)]
 
         if not os.path.exists(audio_path):
             QMessageBox.warning(self, "오류", "선택한 음원 파일이 존재하지 않습니다.")
@@ -323,7 +359,7 @@ class MainWindow(QMainWindow):
 
         self.btn_render.setEnabled(False)
         self.progress_bar.setValue(0)
-        self.log(f"--- 렌더링 개시: {title} ({artist}) ---")
+        self.log(f"--- 렌더링 개시: {title} ({artist}) · {fps}fps ---")
 
         self.render_thread = RenderThread(
             pdf_path=sheet_path,
@@ -332,7 +368,8 @@ class MainWindow(QMainWindow):
             title=title,
             artist=artist,
             sync_mode=sync_mode,
-            midi_path=midi_path if os.path.exists(midi_path) else None
+            midi_path=midi_path if os.path.exists(midi_path) else None,
+            fps=fps,
         )
         self.render_thread.progress_signal.connect(self.progress_bar.setValue)
         self.render_thread.log_signal.connect(self.log)

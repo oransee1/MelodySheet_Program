@@ -1,0 +1,197 @@
+첼로 교차검증 (MIDI Cello vs MusicXML P2)
+  기보 발음 144 · MIDI 163 · 같은 음정 대응 85 (59%) · 절대시각±80ms 0 (0%)
+  시각 무시 음정수열 LCS 155/163 (95%) · 음표가방 163/163 (100%)
+  짝지은 음 시각오차 중앙 2173ms p95 3356ms
+  기보에 없는 MIDI 66 · 기보음이 그 마디 화성구성음 78/144 (54%)
+  기보 선율 역할: 구성음 93 경과음 10 보조음 1 이탈음 6 전타음 8 전악음 14 비화성음 31
+  기보 밖 MIDI 역할: 구성음 26 보조음 2 이탈음 1 전타음 3 전악음 6 비화성음 28
+
+시각    마디  기보           MIDI           온셋 음정 화성 역할
+ 27.652 m14  G3             G3             n    Y    Y  Gm       구성음
+ 27.913 m14  A3             A3             n    Y    n  Gm       경과음
+ 28.174 m14  Bb3            Bb3            n    Y    Y  Gm       구성음
+ 28.696 m14  D4             D4             n    Y    Y  Gm       구성음
+ 29.217 m15  F3             F3             n    Y    n  Eb       비화성음
+ 29.478 m15  F3             F3             n    Y    n  Eb       비화성음
+ 29.609 m15  G3             G3             n    Y    Y  Eb       구성음
+ 29.739 m15  Bb2,G3         Bb2,G3         n    Y    Y  Eb       구성음,구성음
+ 32.870 m16  G3             G3             n    Y    Y  Gm       구성음
+ 33.130 m16  A3             A3             n    Y    n  Gm       전악음
+ 33.391 m17  Bb3            Bb3            n    Y    n  Dm       비화성음
+ 33.913 m17  D4             D4             n    Y    Y  Dm       구성음
+ 34.435 m17  F3,F4          F3,F4          n    Y    Y  Dm       구성음,구성음
+ 35.478 m18  G3             G3             n    Y    Y  Eb       구성음
+ 39.130 m19  F4             F4             n    Y    n  Cm       전타음
+ 39.391 m19  Eb4            Eb4            n    Y    Y  Cm       구성음
+ 39.652 m20  F4             F4             n    Y    Y  F7       구성음
+ 40.174 m20  Bb3            Bb3            n    Y    n  F7       비화성음
+ 40.696 m20  Eb4            Eb4            n    Y    Y  F7       구성음
+ 41.478 m20  D4             D4             n    Y    n  F7       전악음
+ 41.739 m21  D4             D4             n    Y    Y  Gm       구성음
+ 43.826 m22  F3             F3             n    Y    Y  Bb       구성음
+ 44.087 m22  Bb3            Bb3            n    Y    Y  Bb       구성음
+ 44.348 m22  G3             G3             n    Y    n  Bb       비화성음
+ 44.609 m22  A3             A3             n    Y    n  Bb       경과음
+ 44.870 m22  Bb3            Bb3            n    Y    Y  Bb       구성음
+ 45.391 m22  D3             D3             n    Y    Y  Bb       구성음
+ 45.913 m23  C3             C3             n    Y    n  Bb       경과음
+ 46.696 m23  Bb2            -              n    n    Y  Bb       구성음
+ 46.957 m23  A2,C3          -              n    n    n  Bb       비화성음,비화성음
+ 47.217 m23  F3             -              n    n    Y  Bb       구성음
+ 51.130 m25  Bb2            Bb2            n    Y    Y  Gm       구성음
+ 51.652 m25  G3             -              n    n    Y  Gm       구성음
+ 51.913 m25  A3             -              n    n    n  Gm       전악음
+ 52.174 m26  Bb3            -              n    n    n  Dm       비화성음
+ 52.696 m26  D4             -              n    n    Y  Dm       구성음
+ 53.217 m26  C4             -              n    n    n  Dm       비화성음
+ 54.000 m26  G3             G3             n    Y    n  Dm       전악음
+ 54.261 m27  Bb2,G3         Bb2            n    n    Y  Eb       구성음,구성음
+ 59.478 m29  D3             -              n    n    Y  Dm       구성음
+ 60.261 m29  Eb4            -              n    n    n  Dm       전타음
+ 60.391 m29  D4             -              n    n    Y  Dm       구성음
+ 60.522 m30  C4             C4             n    Y    n  Eb       전악음
+ 65.217 m32  Bb3            -              n    n    n  F7       이탈음
+ 65.739 m32  Eb4            Eb4            n    Y    Y  F7       구성음
+ 66.522 m32  D4             D4             n    Y    n  F7       전악음
+ 66.783 m33  D4             -              n    n    Y  Gm       구성음
+ 68.870 m34  F3             -              n    n    Y  Bb       구성음
+ 69.391 m34  G3             -              n    n    n  Bb       경과음
+ 69.652 m34  A3             -              n    n    n  Bb       경과음
+ 69.913 m34  Bb3            Bb3            n    Y    Y  Bb       구성음
+ 70.435 m34  D3             -              n    n    Y  Bb       구성음
+ 70.957 m35  C3             -              n    n    n  Bb       경과음
+ 71.739 m35  Bb2            -              n    n    Y  Bb       구성음
+ 72.000 m35  C3             -              n    n    n  Bb       전악음
+ 75.391 m37  F4             -              n    n    Y  Dm7      구성음
+ 76.174 m37  G3             G3             n    Y    n  Dm7      전타음
+ 78.261 m38  A3             A3             n    Y    Y  Dm7      구성음
+ 78.652 m38  Bb3            -              n    n    n  Dm7      경과음
+ 78.913 m38  C4             -              n    n    Y  Dm7      구성음
+ 79.304 m39  Eb4            -              n    n    Y  F7       구성음
+ 80.087 m39  D4             -              n    n    n  F7       비화성음
+ 80.348 m39  D4             -              n    n    n  F7       비화성음
+ 83.156 m40  F3             -              n    n    n  Eb       전타음
+ 84.921 m41  G3             G3             n    Y    Y  Eb       구성음
+ 86.685 m41  A3             A3             n    Y    n  Eb       경과음
+ 86.906 m41  Bb3            Bb3            n    Y    Y  Eb       구성음
+ 87.127 m41  C4             C4             n    Y    n  Eb       비화성음
+ 87.347 m41  Eb4            Eb4            n    Y    Y  Eb       구성음
+ 88.009 m41  D4             D4             n    Y    n  Eb       전악음
+ 88.450 m42  D3,Bb3         Bb3            n    n    Y  Gm       구성음,구성음
+ 91.097 m42  F3,Bb3         F3,Bb3         n    Y    n  Gm       비화성음,구성음
+ 94.627 m43  Eb3            Eb3            n    Y    Y  Eb       구성음
+ 95.509 m44  Bb3            Bb3            n    Y    n  F        전타음
+ 97.274 m44  A3             A3             n    Y    Y  F        구성음
+ 99.700 m45  Bb3            Bb3            n    Y    Y  Bb       구성음
+102.347 m45  F3             F3             n    Y    Y  Bb       구성음
+103.450 m46  Eb4            Eb4            n    Y    n  Bb       비화성음
+104.332 m46  Eb4            Eb4            n    Y    n  Bb       비화성음
+104.627 m46  Eb4            Eb4            n    Y    n  Bb       비화성음
+104.921 m46  Eb4            Eb4            n    Y    n  Bb       비화성음
+105.215 m46  Eb4            Eb4            n    Y    n  Bb       비화성음
+105.435 m46  Bb3            Bb3            n    Y    Y  Bb       구성음
+105.656 m46  Eb4            -              n    n    n  Bb       비화성음
+105.877 m46  Eb4            -              n    n    n  Bb       전악음
+107.862 m47  G3             -              n    n    Y  Eb       구성음
+108.744 m47  D3             -              n    n    n  Eb       비화성음
+111.391 m48  Bb3            -              n    n    Y  Eb       구성음
+113.156 m49  Eb2,Bb2        Bb2            n    n    Y  Eb       구성음,구성음
+116.685 m50  F2,F3,C4       F3,C4          n    n    Y  F        구성음,구성음,구성음
+120.885 m51  F3             -              n    n    Y  F        구성음
+121.485 m52  Bb2,D3         -              n    n    Y  Bb       구성음,구성음
+123.885 m53  D3             -              n    n    n  Eb       비화성음
+124.185 m53  D3             -              n    n    n  Eb       비화성음
+124.485 m53  Bb3            Bb3            n    Y    Y  Eb       구성음
+125.085 m53  C4             C4             n    Y    n  Eb       경과음
+125.985 m53  D4             D4             n    Y    n  Eb       이탈음
+126.285 m54  G3             -              n    n    Y  Eb       구성음
+129.285 m55  A3             -              n    n    n  Gm       경과음
+129.885 m55  Bb3            Bb3            n    Y    Y  Gm       구성음
+130.785 m55  C4             -              n    n    n  Gm       전악음
+131.085 m56  Bb3,D4         -              n    n    n  F        전악음,비화성음
+133.485 m57  F4             -              n    n    n  Eb       비화성음
+134.685 m57  Bb3            -              n    n    Y  Eb       구성음
+137.685 m58  Eb2            -              n    n    n  Dm       비화성음
+138.285 m59  D3             D3             n    Y    Y  Bb       구성음
+139.485 m59  Eb2,Bb2,Eb3    -              n    n    n  Bb       비화성음,구성음,보조음
+143.085 m61  D3             D3             n    Y    n  F        이탈음
+143.968 m61  F2,F3          -              n    n    Y  F        구성음,구성음
+148.490 m64  D3             -              n    n    Y  Gm       구성음
+149.813 m64  D4             -              n    n    Y  Gm       구성음
+150.144 m65  D3             -              n    n    Y  Dm       구성음
+151.027 m65  Eb3            Eb3            n    Y    n  Dm       이탈음
+153.674 m67  G2             -              n    n    Y  Gm       구성음
+156.321 m68  Eb3            Eb3            n    Y    n  Dm       전악음
+158.968 m70  Eb3            -              n    n    Y  Ab       구성음
+159.409 m70  F4             -              n    n    n  Ab       전타음
+159.630 m70  Eb4            Eb4            n    Y    Y  Ab       구성음
+159.850 m70  F4             -              n    n    n  Ab       이탈음
+160.291 m70  Bb3            Bb3            n    Y    n  Ab       전악음
+160.732 m71  Ab3,Eb4        -              n    n    n  Gm7      비화성음,전타음
+161.394 m71  D4             D4             n    Y    Y  Gm7      구성음
+161.615 m71  D4             D4             n    Y    Y  Gm7      구성음
+163.821 m72  G3             G3             n    Y    Y  Gm7      구성음
+164.041 m72  A3             A3             n    Y    n  Gm7      전악음
+164.262 m73  Bb3            -              n    n    n  F        이탈음
+164.703 m73  D3             D3             n    Y    n  F        전타음
+165.144 m73  C3             C3             n    Y    Y  F        구성음
+165.806 m73  F2,F3          F2,F3          n    Y    Y  F        구성음,구성음
+166.027 m74  G2,Bb2         G2,Bb2         n    Y    Y  Gm7      구성음,구성음
+169.556 m76  Eb3            Eb3            n    Y    n  Bb       비화성음
+171.881 m77  Eb3            Eb3            n    Y    n  Bb       비화성음
+172.442 m77  Eb3            Eb3            n    Y    n  Bb       비화성음
+173.564 m78  F2,D3,Bb3      F2,D3,Bb3      n    Y    Y  Bb       구성음,구성음,구성음
+175.807 m79  A3             A3             n    Y    Y  F        구성음
+181.414 m81  Bb3            Bb3            n    Y    Y  Bb       구성음
+187.022 m84  G3             G3             n    Y    Y  Gm       구성음
+188.143 m84  Bb2            Bb2            n    Y    Y  Gm       구성음
+189.545 m85  D4             D4             n    Y    n  F        비화성음
+190.667 m85  F3             F3             n    Y    Y  F        구성음
+193.751 m87  Bb2            Bb2            n    Y    Y  Bb       구성음
+197.115 m88  Bb2            Bb2            n    Y    Y  Bb       구성음
+198.797 m89  Bb2            Bb2            n    Y    Y  Bb       구성음
+201.040 m90  Bb2            -              n    n    Y  Bb       구성음
+
+기보에 없는 MIDI (연주에만 있는 음):
+  t=50.749 m25 A2  비화성음
+  t=50.749 m25 C3  비화성음
+  t=51.028 m25 F3  비화성음
+  t=55.795 m27 A3  전타음
+  t=56.075 m27 Bb3  구성음
+  t=56.635 m28 D4  구성음
+  t=58.319 m28 Bb2  구성음
+  t=58.319 m28 G3  구성음
+  t=58.319 m28 G3  구성음
+  t=63.925 m31 D3  비화성음
+  t=65.047 m32 C4  구성음
+  t=70.655 m34 Eb4  전타음
+  t=71.775 m35 D4  구성음
+  t=71.775 m35 D4  구성음
+  t=74.018 m36 F3  구성음
+  t=75.140 m37 Bb3  비화성음
+  t=75.702 m37 D3  구성음
+  t=76.262 m37 C3  구성음
+  t=77.383 m38 Bb2  보조음
+  t=77.663 m38 C3  구성음
+  t=81.028 m39 F4  구성음
+  t=86.355 m41 D4  전악음
+  t=89.720 m42 G3  구성음
+  t=90.842 m42 A3  비화성음
+  t=91.122 m42 C4  비화성음
+  t=91.262 m42 Eb4  비화성음
+  t=91.964 m42 D3  구성음
+  t=91.964 m42 D4  구성음
+  t=93.645 m43 F3  비화성음
+  t=93.645 m43 Bb3  구성음
+  t=101.495 m45 Eb4  비화성음
+  t=102.057 m45 Eb4  비화성음
+  t=102.756 m46 Bb3  구성음
+  t=104.298 m46 G3  비화성음
+  t=104.860 m46 D3  구성음
+  t=107.663 m47 Eb2  구성음
+  t=107.663 m47 Bb2  구성음
+  t=109.907 m48 F2  비화성음
+  t=109.907 m48 F3  비화성음
+  t=109.907 m48 C4  비화성음
+
+이음줄 종료음은 새 발음이 아니다. 겹음은 한 시각의 음정 집합으로 본다.

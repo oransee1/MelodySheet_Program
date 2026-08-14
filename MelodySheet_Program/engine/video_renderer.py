@@ -5,6 +5,14 @@ import cv2
 from moviepy import VideoClip, AudioFileClip, concatenate_videoclips
 from engine.sheet_processor import convert_pdf_to_multi_page_image
 from engine.sync_manager import SyncManager
+from engine.score_layout import analyze_score_layout
+from engine.score_timeline import build_score_timeline, find_sidecar
+from engine.score_notes import attach_measure_anchors
+from engine.beat_audit import run_beat_audit, write_audit_file
+from engine.piano_chords import extract_piano_chords, write_chord_report
+from engine.violin_audit import audit_violin, write_violin_report
+from engine.cello_audit import audit_cello, write_cello_report
+from engine.bass_audit import audit_bass, write_bass_report
 
 def create_text_image(width: int, height: int, title: str, subtitle: str, bg_color=(20, 20, 25), text_color=(255, 255, 255)) -> Image.Image:
     """인트로 / 아웃트로용 텍스트 이미지 생성"""
@@ -40,7 +48,8 @@ def create_text_image(width: int, height: int, title: str, subtitle: str, bg_col
 class VideoRenderer:
     def __init__(self, pdf_path: str, audio_path: str, output_path: str,
                  title: str = "Sunday Slow Motion", artist: str = "Kim Sanghoon",
-                 sync_mode: str = "klangio", midi_path: str = None, progress_callback=None, log_callback=None):
+                 sync_mode: str = "klangio", midi_path: str = None, progress_callback=None, log_callback=None,
+                 fps: int = 120):
         self.pdf_path = pdf_path
         self.audio_path = audio_path
         self.output_path = output_path
@@ -53,7 +62,45 @@ class VideoRenderer:
         
         self.width = 1920
         self.height = 1080
-        self.fps = 30
+        self.fps = int(fps) if fps and int(fps) > 0 else 120
+
+    def _sidecar(self, base_path, extensions):
+        return find_sidecar(base_path, extensions)
+
+    def _detect_audio_offset(self, audio_clip, timeline):
+        """음원 앞 무음만 보정한다. 다성 onset 상관은 평탄한 점수가 나와 쓰지 않는다."""
+        sr = 11025
+        probe = min(4.0, float(audio_clip.duration or 0.0))
+        if probe <= 0:
+            return 0.0
+        try:
+            head = audio_clip.subclipped(0, probe)
+            arr = head.to_soundarray(fps=sr)
+        except Exception:
+            return 0.0
+        if arr is None or len(arr) == 0:
+            return 0.0
+        if arr.ndim > 1:
+            arr = arr.mean(axis=1)
+        hop = max(1, int(sr * 0.01))
+        peak = float(np.max(np.abs(arr))) if len(arr) else 0.0
+        thresh = max(0.01, peak * 0.03)
+        onset = 0.0
+        for i in range(0, len(arr) - hop, hop):
+            if float(np.sqrt(np.mean(arr[i : i + hop] ** 2))) >= thresh:
+                onset = i / float(sr)
+                break
+        if onset < 0.18:
+            onset = 0.0
+        if self.log_callback:
+            extra = None
+            if timeline and timeline.music_end:
+                extra = audio_clip.duration - timeline.music_end
+            self.log_callback(
+                f"[음원] 시작 오프셋 {onset:.3f}s"
+                + (f", 악보 대비 길이차 {extra:+.3f}s" if extra is not None else "")
+            )
+        return onset
 
     def render(self):
         """동영상 생성 프로세스 실행"""
@@ -62,70 +109,132 @@ class VideoRenderer:
         
         intro_duration = 3.0
         outro_duration = 3.0
-        # 8페이지 악보 전체 세로 캔버스 이미지 및 페이지 Y 위치 생성
-        sheet_img, page_y_positions = convert_pdf_to_multi_page_image(self.pdf_path, dpi=200)
-        
+        sheet_dpi = 200
+        # 전체 페이지를 하나의 세로 캔버스로 합친 뒤, 같은 해상도에서 단/마디를 읽는다.
+        sheet_img, page_y_positions = convert_pdf_to_multi_page_image(self.pdf_path, dpi=sheet_dpi)
+        sheet_raw = np.array(sheet_img)
+
+        musicxml_path = self._sidecar(self.midi_path, (".musicxml", ".xml")) or self._sidecar(
+            self.pdf_path, (".musicxml", ".xml")
+        )
+        lilypond_path = self._sidecar(self.pdf_path, (".ly",))
+        midi_path = self.midi_path if self.midi_path and os.path.isfile(self.midi_path) else None
+        if midi_path and os.path.splitext(midi_path)[1].lower() not in (".mid", ".midi"):
+            midi_path = self._sidecar(self.pdf_path, (".mid", ".midi"))
+
+        timeline = build_score_timeline(
+            musicxml_path=musicxml_path,
+            lilypond_path=lilypond_path,
+            midi_path=midi_path,
+            log_callback=self.log_callback,
+        )
+        layout = analyze_score_layout(
+            pdf_path=self.pdf_path,
+            stitched_img=sheet_raw,
+            page_y_positions=page_y_positions,
+            dpi=sheet_dpi,
+            total_measures=timeline.n_measures,
+            log_callback=self.log_callback,
+        )
+        attach_measure_anchors(
+            timeline,
+            layout,
+            musicxml_path,
+            log_callback=self.log_callback,
+            midi_path=None,
+            stitched_img=sheet_raw,
+        )
+
         if self.log_callback:
-            self.log_callback("[1차 스캔 완료] PDF 파일 악보의 전체 단(System) 레이아웃 분할 분석 완료")
-            
-        # 한 단(System)의 높이가 화면 높이(1080) 안에 모두 들어오도록 스케일 동적 계산 (가로세로 비율 유지)
-        systems_per_page = 2
-        orig_page_h = page_y_positions[1] - page_y_positions[0] if len(page_y_positions) > 1 else sheet_img.height
-        orig_sys_h = orig_page_h / systems_per_page
-        
-        max_sys_h = self.height - 120  # 상/하단 여백 및 브랜딩 바 고려
-        scale = min(self.width / sheet_img.width, max_sys_h / orig_sys_h)
-        
+            self.log_callback("[1차 스캔 완료] PDF 단 · 마디 세로줄 · 음표 앵커 분석 완료")
+
+        chord_report = extract_piano_chords(timeline, midi_path, musicxml_path)
+        chord_path = write_chord_report(self.output_path, chord_report)
+        if self.log_callback:
+            for line in chord_report.summary_lines():
+                self.log_callback(line)
+            self.log_callback(f"[피아노 화음] 상세: {chord_path}")
+
+        violin_report = audit_violin(timeline, midi_path, musicxml_path)
+        violin_path = write_violin_report(self.output_path, violin_report)
+        if self.log_callback:
+            for line in violin_report.summary_lines():
+                self.log_callback(line)
+            self.log_callback(f"[바이올린] 상세: {violin_path}")
+
+        cello_report = audit_cello(timeline, midi_path, musicxml_path)
+        cello_path = write_cello_report(self.output_path, cello_report)
+        if self.log_callback:
+            for line in cello_report.summary_lines():
+                self.log_callback(line)
+            self.log_callback(f"[첼로] 상세: {cello_path}")
+
+        bass_report = audit_bass(timeline, midi_path, musicxml_path)
+        bass_path = write_bass_report(self.output_path, bass_report)
+        if self.log_callback:
+            for line in bass_report.summary_lines():
+                self.log_callback(line)
+            self.log_callback(f"[베이스] 상세: {bass_path}")
+
+        # 가장 큰 단이 화면 안에 들어가도록 스케일
+        if layout.systems:
+            orig_sys_h = max(s.y1 - s.y0 for s in layout.systems)
+        else:
+            orig_page_h = page_y_positions[1] - page_y_positions[0] if len(page_y_positions) > 1 else sheet_img.height
+            orig_sys_h = orig_page_h / 2.0
+
+        max_sys_h = self.height - 120
+        scale = min(self.width / sheet_img.width, max_sys_h / max(orig_sys_h, 1.0))
+
         target_w = int(sheet_img.width * scale)
         target_h = int(sheet_img.height * scale)
         scaled_page_y = [int(py * scale) for py in page_y_positions]
+        layout = layout.scaled(scale)
 
         sheet_resized = sheet_img.resize((target_w, target_h), Image.Resampling.LANCZOS)
         sheet_np = np.array(sheet_resized)
-        
-        x_offset = (self.width - target_w) // 2
 
-        # 1. 음표 시작 위치(검은색) 스캔 알고리즘 적용 및 로그 출력
-        # 대보표 묶음줄, 음자리표, 조표, 박자표를 건너뛰고 실제 첫 음표를 스캔하기 위해 범위를 24%부터 시작
-        scan_x_start = int(target_w * 0.24)
-        scan_x_end = int(target_w * 0.45)
-        scan_y_start = scaled_page_y[0]
-        scan_y_end = scaled_page_y[1] if len(scaled_page_y) > 1 else target_h
-        
-        first_note_x = int(target_w * 0.24)
-        detected_color = None
-        
-        if self.log_callback:
-            self.log_callback("Pdf파일 음표시작의 실제 검은색 은표 색상을 스캔합니다...")
-            
-        for x in range(scan_x_start, scan_x_end):
-            col_pixels = sheet_np[scan_y_start:scan_y_end, x]
-            # 어두운 픽셀 (RGB 모두 100 이하) 검출
-            dark_pixels = np.all(col_pixels < 100, axis=-1)
-            if np.sum(dark_pixels) > 15: # 임계값 (음표)
-                first_note_x = x
-                dark_idx = np.where(dark_pixels)[0][0]
-                detected_color = col_pixels[dark_idx]
-                break
-                
-        if self.log_callback and detected_color is not None:
-            self.log_callback(f"[스캔 완료] 실제 음표시작 검은색 색상 감지됨: RGB{tuple(detected_color)} (X위치: {first_note_x}px)")
-        elif self.log_callback:
-            self.log_callback(f"[스캔 실패] 음표를 찾지 못해 기본 위치를 사용합니다.")
+        x_offset = (self.width - target_w) // 2
+        audio_offset = self._detect_audio_offset(audio_clip, timeline)
 
         sync_mgr = SyncManager(
             audio_duration=audio_duration,
             intro_duration=intro_duration,
             outro_duration=outro_duration,
-            midi_path=self.midi_path,
+            midi_path=midi_path,
             page_y_positions=scaled_page_y,
             img_height=target_h,
-            log_callback=self.log_callback
+            log_callback=self.log_callback,
+            layout=layout,
+            timeline=timeline,
+            audio_offset=audio_offset,
         )
-        sync_mgr.first_note_ratio = first_note_x / target_w
-        
+
+        audit = run_beat_audit(
+            timeline=timeline,
+            layout=layout,
+            sync_mgr=sync_mgr,
+            audio_path=self.audio_path,
+            midi_path=midi_path,
+            musicxml_path=musicxml_path,
+            lilypond_path=lilypond_path,
+            img_width=target_w,
+            img_height=target_h,
+            viewport_h=self.height,
+        )
+        audit_path = write_audit_file(self.output_path, audit)
         if self.log_callback:
-            self.log_callback("--- [최종 분석 데이터 기반 렌더링 시작] ---")
+            for line in audit.summary_lines:
+                self.log_callback(line)
+            self.log_callback(f"[교차검증] 상세: {audit_path}")
+            if audit.verdict == "FAIL":
+                self.log_callback("[교차검증] FAIL — 영상은 만들지만 박자 구조가 어긋난 항목이 있습니다.")
+
+        if self.log_callback:
+            self.log_callback(
+                f"--- [최종 분석 데이터 기반 렌더링 시작] {self.fps}fps "
+                f"(빠른 커서 구간 프레임 간격 {1000.0 / self.fps:.1f}ms) ---"
+            )
 
         # 1. 인트로 클립
         intro_img = create_text_image(self.width, self.height, self.title, f"Composed & Arranged by {self.artist}")

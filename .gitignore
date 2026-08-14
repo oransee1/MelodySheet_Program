@@ -1,10 +1,20 @@
 .idea/
 
 # Default ignored files
-/shelf/
-/workspace.xml
+.idea/shelf/
+.idea/workspace.xml
 # Editor-based HTTP Client requests
-/httpRequests/
+.idea/httpRequests/
 # Datasource local storage ignored files
-/dataSources/
-/dataSources.local.xml
+.idea/dataSources/
+.idea/dataSources.local.xml
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# 렌더 산출물(영상은 용량이 커서 저장소에 넣지 않는다)
+*.mp4
+*TEMP_MPY*
+MelodySheet_Program/Output/diag/*.png

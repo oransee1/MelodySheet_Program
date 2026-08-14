@@ -1,149 +1,161 @@
-from typing import Tuple, Optional, List
-import os
-import pretty_midi
+from typing import Optional, Tuple
+
+from engine.score_layout import ScoreLayout
+from engine.score_timeline import ScoreTimeline
+
 
 class SyncManager:
-    """
-    Klangio 5줄 앙상블 및 피아노/다중 악보 정밀 싱크 타임라인 계산기
-    """
-    
-    def __init__(self, audio_duration: float, intro_duration: float = 3.0, outro_duration: float = 3.0,
-                 midi_path: Optional[str] = None, page_y_positions: Optional[List[int]] = None,
-                 img_height: int = 1000, log_callback=None):
+    """악보 단·마디 레이아웃과 연주 시간축을 커서/스크롤에 묶는다."""
+
+    def __init__(
+        self,
+        audio_duration: float,
+        intro_duration: float = 3.0,
+        outro_duration: float = 3.0,
+        midi_path: Optional[str] = None,
+        page_y_positions=None,
+        img_height: int = 1000,
+        log_callback=None,
+        layout: Optional[ScoreLayout] = None,
+        timeline: Optional[ScoreTimeline] = None,
+        audio_offset: float = 0.0,
+    ):
         self.audio_duration = audio_duration
         self.intro_duration = intro_duration
         self.outro_duration = outro_duration
         self.main_duration = max(audio_duration, 0.1)
         self.total_duration = intro_duration + audio_duration + outro_duration
         self.log_callback = log_callback
-        
-        self.midi_data = None
-        self.tempo_bpm = 115.0
-        self.midi_notes = []
-        
-        if midi_path and os.path.exists(midi_path):
-            try:
-                self.midi_data = pretty_midi.PrettyMIDI(midi_path)
-                tempo_change_times, tempi = self.midi_data.get_tempo_changes()
-                if len(tempi) > 0:
-                    self.tempo_bpm = float(tempi[0])
-                
-                for inst in self.midi_data.instruments:
-                    if not inst.is_drum:
-                        for note in inst.notes:
-                            self.midi_notes.append((note.start, note.end))
-                self.midi_notes.sort(key=lambda x: x[0])
-                
-                # 음원의 시작과 음표 시작을 동일하게 맞추기 위해 첫 음표 오프셋 제거 및 정밀 타임라인 기록
-                if self.midi_notes:
-                    first_start = self.midi_notes[0][0]
-                    self.midi_notes = [(max(0.0, s - first_start), max(0.0, e - first_start)) for s, e in self.midi_notes]
-                    self.unique_note_times = sorted(list(set([n[0] for n in self.midi_notes])))
-                    if self.log_callback:
-                        self.log_callback("[3차 스캔 완료] MIDI 파일 정밀 타임라인 및 절대 시간 구조 확보")
-            except Exception:
-                pass
-                
+        self.midi_path = midi_path
+        self.layout = layout
+        self.timeline = timeline
+        self.audio_offset = audio_offset
         self.page_y_positions = page_y_positions if page_y_positions else [0, img_height]
-        self.num_pages = max(1, len(self.page_y_positions) - 1)
-        
-        # 1페이지당 시스템(단) 수 추정 (앙상블/대보표 악보의 경우 보통 2단~3단)
-        self.systems_per_page = 2
-        self.total_systems = max(1, self.num_pages * self.systems_per_page)
-        
+        self.last_logged_sys_idx = -1
+
         if self.log_callback:
-            self.log_callback("[4차 스캔 완료] PDF 시각적 공간과 MIDI 타임라인의 선형 시공간 매핑 분석 완료")
-
-    def calculate_sync(self, elapsed_main_time: float, img_width: int, img_height: int, viewport_h: int) -> Tuple[int, Tuple[int, int, int, int]]:
-        """
-        현재 재생 시간(t)에 따른 화면 스크롤 YOffset과 커서 (x, y, w, h)를 완벽하게 연동하여 계산
-        반환: (y_offset, (cursor_x, cursor_y, cursor_w, cursor_h))
-        """
-        if self.main_duration <= 0:
-            return 0, (0, 0, 18, 200)
-
-        progress = min(max(elapsed_main_time / self.main_duration, 0.0), 1.0)
-        
-        # MIDI 노트 데이터가 있으면 더 정밀한 노트 연주 구간 매핑
-        if hasattr(self, 'unique_note_times') and len(self.unique_note_times) > 1:
-            times = self.unique_note_times
-            if elapsed_main_time <= times[0]:
-                music_progress = 0.0
-            elif elapsed_main_time >= times[-1]:
-                music_progress = 1.0
+            if layout and layout.systems and timeline and timeline.n_measures:
+                self.log_callback(
+                    f"[동기화] 마디 {timeline.n_measures}개 · 단 {len(layout.systems)}개 · "
+                    f"연주 {timeline.music_end:.2f}s / 음원 {audio_duration:.2f}s "
+                    f"(오프셋 {audio_offset:.3f}s)"
+                )
             else:
-                # [Time-based 정밀 시공간 매핑] 노트 밀도에 의한 왜곡 없이 절대 시간에 기반한 일정한 진행률 산출
-                music_progress = (elapsed_main_time - times[0]) / (times[-1] - times[0])
-        else:
-            music_progress = progress
+                self.log_callback("[동기화] 레이아웃/타임라인 없음 — 선형 스크롤로 대체")
 
-        # 1. 현재 연주 중인 단(System) 위치 산출
-        curr_sys_float = music_progress * self.total_systems
-        curr_sys_idx = min(int(curr_sys_float), self.total_systems - 1)
-        intra_sys_prog = curr_sys_float - curr_sys_idx  # 단 내부에서의 진행률 (0.0 ~ 1.0)
-        
-        # 1-1. 스캔 결과물이 렌더링에 적용되는 과정을 로그로 출력 (단 전환 시 1회만 출력)
-        if curr_sys_idx != getattr(self, 'last_logged_sys_idx', -1):
-            self.last_logged_sys_idx = curr_sys_idx
-            if self.log_callback:
-                if curr_sys_idx == 0 and hasattr(self, 'first_note_ratio'):
-                    applied_x = int(img_width * self.first_note_ratio)
-                    self.log_callback(f"[렌더링 동기화 반영] 1번째 단(System) 진입: 스캔된 첫 음표 X위치({applied_x}px)를 커서 시작점으로 정밀 적용 중...")
-                else:
-                    applied_x = int(img_width * 0.16)
-                    self.log_callback(f"[렌더링 동기화 반영] {curr_sys_idx + 1}번째 단(System) 진입: 동적 기본 여백 X위치({applied_x}px)를 커서 시작점으로 정밀 적용 중...")
+    def _music_time(self, elapsed_main_time: float) -> float:
+        return max(0.0, elapsed_main_time - self.audio_offset)
 
-        # 2. 단(System)의 악보 Y 위치 산출
-        page_idx = min(curr_sys_idx // self.systems_per_page, self.num_pages - 1)
-        intra_page_sys = curr_sys_idx % self.systems_per_page
-        
-        p_start_y = self.page_y_positions[page_idx]
-        p_end_y = self.page_y_positions[page_idx + 1] if (page_idx + 1) < len(self.page_y_positions) else img_height
-        p_h = max(1, p_end_y - p_start_y)
-        
-        sys_h = p_h / self.systems_per_page
-        sys_y_top = p_start_y + (intra_page_sys * sys_h)
-        
-        # 3. 화면 스크롤 (y_offset) 계산: 한 단(System) 전체가 화면 세로 중앙에 오도록 설정 (대보표 잘림 방지)
-        target_y_offset = sys_y_top - (viewport_h - sys_h) / 2
-        
-        # 단 전환 시(마지막 15% 구간) 부드러운 스크롤Transition
-        if intra_sys_prog > 0.85 and curr_sys_idx < self.total_systems - 1:
-            next_sys_idx = curr_sys_idx + 1
-            next_p_idx = min(next_sys_idx // self.systems_per_page, self.num_pages - 1)
-            next_intra_p_sys = next_sys_idx % self.systems_per_page
-            next_p_start = self.page_y_positions[next_p_idx]
-            next_p_end = self.page_y_positions[next_p_idx + 1] if (next_p_idx + 1) < len(self.page_y_positions) else img_height
-            next_sys_h = (next_p_end - next_p_start) / self.systems_per_page
-            next_sys_y_top = next_p_start + (next_intra_p_sys * next_sys_h)
-            next_target = next_sys_y_top - (viewport_h - next_sys_h) / 2
-            
-            blend = (intra_sys_prog - 0.85) / 0.15
-            target_y_offset = target_y_offset * (1 - blend) + next_target * blend
-            
+    def calculate_sync(
+        self, elapsed_main_time: float, img_width: int, img_height: int, viewport_h: int
+    ) -> Tuple[int, Tuple[int, int, int, int]]:
+        """현재 음원 시각 → (스크롤 y_offset, 커서 x,y,w,h). 커서 좌표는 화면 기준."""
+        if self.layout and self.layout.systems and self.timeline and self.timeline.n_measures:
+            return self._sync_from_score(elapsed_main_time, img_width, img_height, viewport_h)
+        return self._sync_linear(elapsed_main_time, img_width, img_height, viewport_h)
+
+    def _sync_from_score(
+        self, elapsed_main_time: float, img_width: int, img_height: int, viewport_h: int
+    ) -> Tuple[int, Tuple[int, int, int, int]]:
+        t = self._music_time(elapsed_main_time)
+        meas_idx, intra = self.timeline.measure_at(t)
+        meas = self.timeline.measures[meas_idx]
+        sys = self.layout.system_for_measure(meas.number)
+        if sys is None:
+            return self._sync_linear(elapsed_main_time, img_width, img_height, viewport_h)
+
+        left, right = sys.measure_x_range(meas.number)
+        x_frac = meas.x_frac_at(t) if hasattr(meas, "x_frac_at") else intra
+        cursor_x = int(left + (right - left) * x_frac)
+
+        sys_h = max(1, sys.y1 - sys.y0)
+        target_y_offset = self._scroll_offset(t, sys, viewport_h)
+
         max_scroll = max(0, img_height - viewport_h)
         y_offset = int(min(max(target_y_offset, 0), max_scroll))
 
-        # 4. 커서 위치 계산
-        if curr_sys_idx == 0 and hasattr(self, 'first_note_ratio'):
-            margin_left = int(img_width * self.first_note_ratio)
-        else:
-            margin_left = int(img_width * 0.16)
-            
-        margin_right = int(img_width * 0.89)
-        cursor_x = int(margin_left + (margin_right - margin_left) * intra_sys_prog)
-        
-        cursor_y_screen = int(sys_y_top - y_offset + (sys_h * 0.05))
-        cursor_w = 18
-        cursor_h = int(sys_h * 0.88)
+        cursor_y_screen = int(sys.y0 - y_offset)
+        cursor_h = int(sys_h)
+        cursor_w = 16
+        if cursor_y_screen < 42:
+            cursor_h = max(1, cursor_h - (42 - cursor_y_screen))
+            cursor_y_screen = 42
+        if cursor_y_screen + cursor_h > viewport_h:
+            cursor_h = max(1, viewport_h - cursor_y_screen)
+
+        if sys.index != self.last_logged_sys_idx:
+            self.last_logged_sys_idx = sys.index
+            if self.log_callback:
+                self.log_callback(
+                    f"[렌더링 동기화] 단 {sys.index + 1}/{len(self.layout.systems)} "
+                    f"마디 {sys.start_measure}-{sys.end_measure} 진입 "
+                    f"(t={t:.2f}s, x={cursor_x})"
+                )
 
         return y_offset, (cursor_x, cursor_y_screen, cursor_w, cursor_h)
+
+    def _system_y_offset(self, sys, viewport_h: int) -> float:
+        sys_h = max(1, sys.y1 - sys.y0)
+        return sys.y0 - (viewport_h - sys_h) / 2.0
+
+    def _scroll_offset(self, t: float, sys, viewport_h: int) -> float:
+        """현재 단을 화면에 유지하고, 음이 끝난 뒤에만 다음 단/페이지로 옮긴다.
+
+        예전에는 단 시간의 85%부터 미리 섞어서 다음 페이지가
+        마지막 마디를 듣기도 전에 올라왔다.
+        """
+        hold = self._system_y_offset(sys, viewport_h)
+        if sys.index + 1 >= len(self.layout.systems):
+            return hold
+        if sys.end_measure < 1 or sys.end_measure > len(self.timeline.measures):
+            return hold
+
+        nxt = self.layout.systems[sys.index + 1]
+        nxt_off = self._system_y_offset(nxt, viewport_h)
+        last = self.timeline.measures[sys.end_measure - 1]
+        last_start, last_end = last.start_sec, last.end_sec
+        last_dur = max(last.duration_sec, 1e-6)
+        same_page = nxt.page_index == sys.page_index
+
+        if same_page:
+            # 같은 페이지 아랫단: 마지막 마디에 들어온 뒤, 그 마디의 후반에만 내린다.
+            if t < last_start + last_dur * 0.70:
+                return hold
+            blend = (t - (last_start + last_dur * 0.70)) / (last_dur * 0.30)
+        else:
+            # 다음 페이지: 마지막 마디가 거의 끝날 때만 넘긴다 (최대 0.4초).
+            tail = min(0.40, last_dur * 0.12)
+            turn_at = last_end - tail
+            if t < turn_at:
+                return hold
+            blend = (t - turn_at) / max(tail, 1e-6)
+
+        blend = min(max(blend, 0.0), 1.0)
+        return hold * (1.0 - blend) + nxt_off * blend
+
+    def _sync_linear(
+        self, elapsed_main_time: float, img_width: int, img_height: int, viewport_h: int
+    ) -> Tuple[int, Tuple[int, int, int, int]]:
+        """레이아웃을 못 읽었을 때의 최후 선형 대체."""
+        if self.main_duration <= 0:
+            return 0, (0, 0, 18, 200)
+        progress = min(max(elapsed_main_time / self.main_duration, 0.0), 1.0)
+        max_scroll = max(0, img_height - viewport_h)
+        y_offset = int(progress * max_scroll)
+        margin_left = int(img_width * 0.16)
+        margin_right = int(img_width * 0.89)
+        # 한 화면을 한 주기로 좌→우
+        cycle = progress * max(1, int(round(img_height / max(viewport_h, 1))))
+        intra = cycle - int(cycle)
+        cursor_x = int(margin_left + (margin_right - margin_left) * intra)
+        return y_offset, (cursor_x, 80, 18, viewport_h - 160)
 
     def get_scroll_y(self, elapsed_main_time: float, img_height: int, viewport_height: int) -> int:
         y_offset, _ = self.calculate_sync(elapsed_main_time, 1920, img_height, viewport_height)
         return y_offset
 
-    def get_full_ensemble_cursor(self, elapsed_main_time: float, img_width: int, viewport_h: int) -> Tuple[int, int, int, int]:
+    def get_full_ensemble_cursor(
+        self, elapsed_main_time: float, img_width: int, viewport_h: int
+    ) -> Tuple[int, int, int, int]:
         _, cursor_rect = self.calculate_sync(elapsed_main_time, img_width, 10000, viewport_h)
         return cursor_rect
-
