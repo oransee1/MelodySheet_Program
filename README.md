@@ -19,7 +19,16 @@ MelodySheet_Program/                  ← 이 저장소 루트 (지금 문서)
     └── Sample/                       ← 최소 미리보기 (mp3+pdf)
 ```
 
-패키지 안 폴더마다 README가 있다. 처음이면 이 문서 → `MelodySheet_Program/README.md` → `engine/README.md` 순으로 읽는다.
+이 루트 README와 `engine/README.md`는 **명세서**다. Python·PDF·MIDI 개념이 있는 사람이 구조를 복원할 때 쓴다.
+
+파이썬은 아는데 악보 데이터는 처음이라면, 과장을 빼고 천천히 적은 학습 경로부터 본다.
+
+1. [`MelodySheet_Program/docs/README.md`](MelodySheet_Program/docs/README.md) — 읽는 순서
+2. [`docs/00-용어집.md`](MelodySheet_Program/docs/00-용어집.md) — divisions, tie, LCS 같은 말을 풀어 씀
+3. [`docs/01-설치하고-한번-실행하기.md`](MelodySheet_Program/docs/01-설치하고-한번-실행하기.md)
+4. 그다음 시계 → 단 → 커서 → 감사 숫자 → 막혔을 때
+
+완전 초보(파이썬 문법부터)를 위한 강의 노트는 아니다. 목표 독자는 “파이썬 스크립트는 돌려 봤고, 이 저장소를 한 줄씩 따라가려는 사람”이다.
 
 ---
 

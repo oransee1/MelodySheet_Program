@@ -2,6 +2,8 @@
 
 GUI가 경로만 넘기면 여기서 영상이 만들어진다. 모듈은 **데이터 방향이 한 줄**이다. 서로 순환 import 하지 않도록 아래 층을 지킨다.
 
+처음 읽으면 [`../docs/README.md`](../docs/README.md) 가 더 느리다. 이 파일은 모듈 계약이다. 함수 한 줄마다 주석이 달려 있지는 않다.
+
 ```
 sheet_processor          PDF 픽셀
 score_timeline           마디 → 초 (MusicXML > LilyPond > MIDI)

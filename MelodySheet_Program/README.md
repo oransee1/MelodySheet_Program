@@ -2,6 +2,8 @@
 
 이 폴더가 **작업 디렉터리**다. `python main.py` 는 여기서 실행한다. 상위 저장소 README는 철학과 파이프라인, 이 문서는 파일 배치와 실행이다.
 
+악보·MIDI 용어가 낯설면 먼저 [`docs/README.md`](docs/README.md) 학습 경로를 따른다. 루트 문서는 중급자용 명세서에 가깝다.
+
 ## 왜 폴더가 두 겹인가
 
 PyCharm 프로젝트가 바깥 `MelodySheet_Program` 이고, 소스 루트가 안쪽에 한 번 더 있다. import 경로는 안쪽 기준이다 (`from engine.video_renderer import VideoRenderer`). 바깥에서 `python MelodySheet_Program/main.py` 를 치면 `engine` 을 못 찾는다.
