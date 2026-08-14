@@ -1,0 +1,347 @@
+import os
+import sys
+from datetime import datetime
+from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+                             QLineEdit, QPushButton, QComboBox, QFileDialog, QProgressBar,
+                             QTextEdit, QGroupBox, QMessageBox, QCheckBox)
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtGui import QFont
+from engine.video_renderer import VideoRenderer
+
+DARK_STYLE = """
+QMainWindow {
+    background-color: #121216;
+}
+QWidget {
+    color: #E0E0E6;
+    font-family: 'Segoe UI', Malgun Gothic, sans-serif;
+    font-size: 13px;
+}
+QGroupBox {
+    background-color: #1A1A22;
+    border: 1px solid #2D2D3A;
+    border-radius: 8px;
+    margin-top: 12px;
+    font-weight: bold;
+    color: #4C84FF;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 14px;
+    padding: 0 6px;
+}
+QLineEdit, QComboBox {
+    background-color: #242430;
+    border: 1px solid #363648;
+    border-radius: 5px;
+    padding: 7px 10px;
+    color: #F0F0F5;
+}
+QLineEdit:focus, QComboBox:focus {
+    border: 1px solid #4C84FF;
+}
+QComboBox QAbstractItemView {
+    background-color: #242430;
+    color: #F0F0F5;
+    selection-background-color: #4C84FF;
+    selection-color: #FFFFFF;
+}
+QPushButton {
+    background-color: #2E3244;
+    border: 1px solid #40455C;
+    border-radius: 5px;
+    padding: 8px 16px;
+    color: #FFFFFF;
+    font-weight: bold;
+}
+QPushButton:hover {
+    background-color: #3B4058;
+}
+QPushButton#btnRender {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #3B6CFF, stop:1 #683BFF);
+    border: none;
+    font-size: 15px;
+    padding: 12px;
+    border-radius: 6px;
+}
+QPushButton#btnRender:hover {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4C7BFF, stop:1 #774BFF);
+}
+QProgressBar {
+    border: 1px solid #303040;
+    border-radius: 6px;
+    background-color: #1E1E26;
+    text-align: center;
+    color: white;
+}
+QProgressBar::chunk {
+    background-color: #4C84FF;
+    border-radius: 5px;
+}
+QTextEdit {
+    background-color: #16161E;
+    border: 1px solid #292938;
+    border-radius: 6px;
+    color: #A0A0B0;
+    font-family: 'Consolas', monospace;
+}
+QMessageBox {
+    background-color: #1A1A22;
+}
+QMessageBox QLabel {
+    color: #F0F0F5;
+}
+"""
+
+class RenderThread(QThread):
+    progress_signal = pyqtSignal(int)
+    log_signal = pyqtSignal(str)
+    finished_signal = pyqtSignal(bool, str)
+
+    def __init__(self, pdf_path, audio_path, output_path, title, artist, sync_mode, midi_path=None):
+        super().__init__()
+        self.pdf_path = pdf_path
+        self.audio_path = audio_path
+        self.output_path = output_path
+        self.title = title
+        self.artist = artist
+        self.sync_mode = sync_mode
+        self.midi_path = midi_path
+
+    def run(self):
+        try:
+            self.log_signal.emit("동영상 렌더링 프로세스를 가동합니다...")
+            self.progress_signal.emit(10)
+            
+            renderer = VideoRenderer(
+                pdf_path=self.pdf_path,
+                audio_path=self.audio_path,
+                output_path=self.output_path,
+                title=self.title,
+                artist=self.artist,
+                sync_mode=self.sync_mode,
+                midi_path=self.midi_path,
+                progress_callback=lambda p: self.progress_signal.emit(p),
+                log_callback=lambda msg: self.log_signal.emit(msg)
+            )
+            
+            self.log_signal.emit("8페이지 악보 전체 레스터라이징 및 MIDI 정밀 싱크 분석 중...")
+            renderer.render()
+            
+            self.log_signal.emit(f"렌더링 완료! 저장 경로: {self.output_path}")
+            self.finished_signal.emit(True, self.output_path)
+        except Exception as e:
+            self.log_signal.emit(f"오류 발생: {str(e)}")
+            self.finished_signal.emit(False, str(e))
+
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("MelodySheet Video Generator - 악보 시각화 동영상 제작기")
+        self.resize(820, 800)
+        self.setStyleSheet(DARK_STYLE)
+        
+        self.init_ui()
+        self.auto_fill_default_paths()
+
+    def init_ui(self):
+        main_widget = QWidget()
+        layout = QVBoxLayout(main_widget)
+        layout.setSpacing(15)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        # Title Banner
+        title_label = QLabel("🎵 MelodySheet Video Generator")
+        title_font = QFont()
+        title_font.setPointSize(18)
+        title_font.setBold(True)
+        title_label.setFont(title_font)
+        title_label.setStyleSheet("color: #FFFFFF; margin-bottom: 5px;")
+        layout.addWidget(title_label)
+
+        sub_label = QLabel("Suno 음원, PDF 악보 및 MIDI/MusicXML/GP5/LY 옵션 파일 지원 동영상 제작기")
+        sub_label.setStyleSheet("color: #9090A0;")
+        layout.addWidget(sub_label)
+
+        # 1. 파일 선택 그룹
+        grp_files = QGroupBox(" 1. 음원 및 악보 파일 선택 (기본 및 옵션) ")
+        layout_files = QVBoxLayout(grp_files)
+        
+        # Audio File
+        row_audio = QHBoxLayout()
+        row_audio.addWidget(QLabel("기본 음원 (.mp3/.wav):"))
+        self.txt_audio = QLineEdit()
+        btn_browse_audio = QPushButton("찾아보기")
+        btn_browse_audio.clicked.connect(self.browse_audio)
+        row_audio.addWidget(self.txt_audio)
+        row_audio.addWidget(btn_browse_audio)
+        layout_files.addLayout(row_audio)
+
+        # Sheet File
+        row_sheet = QHBoxLayout()
+        row_sheet.addWidget(QLabel("기본 악보 (.pdf/.png):"))
+        self.txt_sheet = QLineEdit()
+        btn_browse_sheet = QPushButton("찾아보기")
+        btn_browse_sheet.clicked.connect(self.browse_sheet)
+        row_sheet.addWidget(self.txt_sheet)
+        row_sheet.addWidget(btn_browse_sheet)
+        layout_files.addLayout(row_sheet)
+
+        # Optional MIDI File
+        row_midi = QHBoxLayout()
+        row_midi.addWidget(QLabel("옵션 MIDI (.mid):"))
+        self.txt_midi = QLineEdit()
+        btn_browse_midi = QPushButton("찾아보기")
+        btn_browse_midi.clicked.connect(self.browse_midi)
+        row_midi.addWidget(self.txt_midi)
+        row_midi.addWidget(btn_browse_midi)
+        layout_files.addLayout(row_midi)
+
+        # Save Path
+        row_out = QHBoxLayout()
+        row_out.addWidget(QLabel("저장 경로 (.mp4):"))
+        self.txt_output = QLineEdit()
+        btn_browse_out = QPushButton("찾아보기")
+        btn_browse_out.clicked.connect(self.browse_output)
+        row_out.addWidget(self.txt_output)
+        row_out.addWidget(btn_browse_out)
+        layout_files.addLayout(row_out)
+
+        layout.addWidget(grp_files)
+
+        # 2. 곡 및 브랜딩 설정 그룹
+        grp_meta = QGroupBox(" 2. 브랜딩 및 악보 싱크 옵션 ")
+        layout_meta = QVBoxLayout(grp_meta)
+
+        row_meta1 = QHBoxLayout()
+        row_meta1.addWidget(QLabel("곡 제목:"))
+        self.txt_title = QLineEdit("Sunday Slow Motion")
+        row_meta1.addWidget(self.txt_title)
+        
+        row_meta1.addWidget(QLabel("아티스트:"))
+        self.txt_artist = QLineEdit("Kim Sanghoon")
+        row_meta1.addWidget(self.txt_artist)
+        layout_meta.addLayout(row_meta1)
+
+        row_meta2 = QHBoxLayout()
+        row_meta2.addWidget(QLabel("시각화 싱크 방식:"))
+        self.combo_sync = QComboBox()
+        self.combo_sync.addItems([
+            "Klangio Emerald Highlight (Klangio 스타일 반투명 커서)",
+            "Smooth Vertical Scroll (수직 자동 스크롤)"
+        ])
+        row_meta2.addWidget(self.combo_sync)
+        layout_meta.addLayout(row_meta2)
+
+        layout.addWidget(grp_meta)
+
+        # 3. 렌더링 실행 및 진행 상태
+        self.btn_render = QPushButton("🎬 동영상 생성 시작")
+        self.btn_render.setObjectName("btnRender")
+        self.btn_render.clicked.connect(self.start_rendering)
+        layout.addWidget(self.btn_render)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setValue(0)
+        layout.addWidget(self.progress_bar)
+
+        self.txt_log = QTextEdit()
+        self.txt_log.setReadOnly(True)
+        self.txt_log.setPlaceholderText("동영상 렌더링 처리 로그가 이곳에 표시됩니다...")
+        layout.addWidget(self.txt_log)
+
+        self.setCentralWidget(main_widget)
+
+    def auto_fill_default_paths(self):
+        downloads_dir = os.path.expanduser("~/Downloads")
+        desktop_dir = os.path.expanduser("~/Desktop")
+        
+        # 다운로드 및 바탕화면 파일 탐색
+        default_audio = os.path.join(downloads_dir, "Sunday Slow Motion.mp3")
+        if not os.path.exists(default_audio):
+            default_audio = os.path.join(desktop_dir, "Sunday Slow Motion.mp3")
+            
+        default_sheet = os.path.join(downloads_dir, "Sunday Slow Motion.pdf")
+        if not os.path.exists(default_sheet):
+            default_sheet = os.path.join(desktop_dir, "Sunday Slow Motion.pdf")
+            
+        default_midi = os.path.join(downloads_dir, "Sunday Slow Motion.mid")
+        
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        output_dir = os.path.join(base_dir, "Output", today_str)
+        os.makedirs(output_dir, exist_ok=True)
+        default_output = os.path.join(output_dir, "Sunday_Slow_Motion_SheetVideo.mp4")
+
+        if os.path.exists(default_audio):
+            self.txt_audio.setText(default_audio)
+        if os.path.exists(default_sheet):
+            self.txt_sheet.setText(default_sheet)
+        if os.path.exists(default_midi):
+            self.txt_midi.setText(default_midi)
+        self.txt_output.setText(default_output)
+
+    def browse_audio(self):
+        path, _ = QFileDialog.getOpenFileName(self, "음원 파일 선택", "", "Audio Files (*.mp3 *.wav)")
+        if path:
+            self.txt_audio.setText(path)
+
+    def browse_sheet(self):
+        path, _ = QFileDialog.getOpenFileName(self, "악보 파일 선택", "", "Sheet Files (*.pdf *.png *.jpg)")
+        if path:
+            self.txt_sheet.setText(path)
+
+    def browse_midi(self):
+        path, _ = QFileDialog.getOpenFileName(self, "MIDI 파일 선택", "", "MIDI Files (*.mid *.midi *.musicxml *.gp5 *.ly)")
+        if path:
+            self.txt_midi.setText(path)
+
+    def browse_output(self):
+        path, _ = QFileDialog.getSaveFileName(self, "저장 비디오 경로", "", "Video Files (*.mp4)")
+        if path:
+            self.txt_output.setText(path)
+
+    def log(self, text: str):
+        self.txt_log.append(text)
+
+    def start_rendering(self):
+        audio_path = self.txt_audio.text().strip()
+        sheet_path = self.txt_sheet.text().strip()
+        midi_path = self.txt_midi.text().strip()
+        output_path = self.txt_output.text().strip()
+        title = self.txt_title.text().strip()
+        artist = self.txt_artist.text().strip()
+        sync_mode = "klangio" if self.combo_sync.currentIndex() == 0 else "scroll"
+
+        if not os.path.exists(audio_path):
+            QMessageBox.warning(self, "오류", "선택한 음원 파일이 존재하지 않습니다.")
+            return
+        if not os.path.exists(sheet_path):
+            QMessageBox.warning(self, "오류", "선택한 악보 파일이 존재하지 않습니다.")
+            return
+
+        self.btn_render.setEnabled(False)
+        self.progress_bar.setValue(0)
+        self.log(f"--- 렌더링 개시: {title} ({artist}) ---")
+
+        self.render_thread = RenderThread(
+            pdf_path=sheet_path,
+            audio_path=audio_path,
+            output_path=output_path,
+            title=title,
+            artist=artist,
+            sync_mode=sync_mode,
+            midi_path=midi_path if os.path.exists(midi_path) else None
+        )
+        self.render_thread.progress_signal.connect(self.progress_bar.setValue)
+        self.render_thread.log_signal.connect(self.log)
+        self.render_thread.finished_signal.connect(self.on_render_finished)
+        self.render_thread.start()
+
+    def on_render_finished(self, success: bool, message: str):
+        self.btn_render.setEnabled(True)
+        if success:
+            QMessageBox.information(self, "완료", f"동영상 생성이 완료되었습니다!\n경로: {message}")
+        else:
+            QMessageBox.critical(self, "실패", f"동영상 생성 중 오류가 발생했습니다:\n{message}")
