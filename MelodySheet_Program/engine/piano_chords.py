@@ -211,30 +211,30 @@ def parse_written_harmonies(musicxml_path: Optional[str]) -> Dict[int, str]:
         "minor-sixth": "m6",
         "half-diminished": "m7b5",
     }
-    part = root.find("part")
-    if part is None:
-        return out
-    for meas in part.findall("measure"):
-        raw_n = meas.get("number") or ""
-        try:
-            num = int(re.sub(r"[^\d]", "", raw_n) or 0)
-        except ValueError:
-            continue
-        h = meas.find("harmony")
-        if h is None:
-            continue
-        step = h.findtext("root/root-step")
-        if not step:
-            continue
-        try:
-            alt = int(float(h.findtext("root/root-alter") or 0))
-        except ValueError:
-            alt = 0
-        kind = (h.findtext("kind") or "major").strip()
-        names = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
-        pc = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}[step[0]]
-        pc = (pc + alt) % 12
-        out[num] = names[pc] + kind_map.get(kind, "")
+    for part in root.findall("part"):
+        for meas in part.findall("measure"):
+            raw_n = meas.get("number") or ""
+            try:
+                num = int(re.sub(r"[^\d]", "", raw_n) or 0)
+            except ValueError:
+                continue
+            h = meas.find("harmony")
+            if h is None:
+                continue
+            if num in out:
+                continue
+            step = h.findtext("root/root-step")
+            if not step:
+                continue
+            try:
+                alt = int(float(h.findtext("root/root-alter") or 0))
+            except ValueError:
+                alt = 0
+            kind = (h.findtext("kind") or "major").strip()
+            names = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"]
+            pc = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}[step[0]]
+            pc = (pc + alt) % 12
+            out[num] = names[pc] + kind_map.get(kind, "")
     return out
 
 

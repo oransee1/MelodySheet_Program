@@ -31,7 +31,18 @@ def parse_lead_attacks(musicxml_path: str) -> Dict[int, dict]:
     except (OSError, ET.ParseError):
         return out
 
-    part = root.find("part")
+    part = None
+    part_list = root.find("part-list")
+    if part_list is not None:
+        for score_part in part_list.findall("score-part"):
+            pname = score_part.findtext("part-name") or ""
+            if "piano" in pname.lower() or "피아노" in pname:
+                pid = score_part.get("id")
+                part = root.find(f"part[@id='{pid}']")
+                break
+    if part is None:
+        part = root.find("part")
+
     if part is None:
         return out
 
@@ -63,50 +74,65 @@ def parse_lead_attacks(musicxml_path: str) -> Dict[int, dict]:
             width = 0.0
 
         cursor = 0
-        lead_voice = None
-        attacks = []
+        attacks_by_div = {}
         for el in list(meas):
             if el.tag == "backup":
                 cursor -= int(el.findtext("duration") or 0)
+                cursor = max(0, cursor)
                 continue
             if el.tag == "forward":
                 cursor += int(el.findtext("duration") or 0)
                 continue
             if el.tag != "note":
                 continue
-            if el.find("grace") is not None or el.find("chord") is not None:
+            if el.find("grace") is not None:
                 continue
-            staff = el.findtext("staff") or "1"
-            if staff != "1":
-                continue
-            voice = el.findtext("voice") or "1"
-            if lead_voice is None:
-                lead_voice = voice
+
             dur = int(el.findtext("duration") or 0)
-            if voice == lead_voice:
-                dx = el.get("default-x")
-                try:
-                    x_val = float(dx) if dx is not None else None
-                except ValueError:
-                    x_val = None
-                ties = [t.get("type") for t in el.findall("tie")]
-                attacks.append(
-                    {
-                        "div": max(0, cursor),
-                        "dur": max(0, dur),
-                        "rest": el.find("rest") is not None,
-                        "tie_stop": "stop" in ties,
+            is_chord = el.find("chord") is not None
+            is_rest = el.find("rest") is not None
+            note_div = max(0, cursor - dur) if is_chord else cursor
+
+            dx = el.get("default-x")
+            try:
+                x_val = float(dx) if dx is not None else None
+            except ValueError:
+                x_val = None
+
+            ties = [t.get("type") for t in el.findall("tie")]
+            is_tie_stop = "stop" in ties
+
+            if not is_tie_stop and not is_rest:
+                if note_div not in attacks_by_div:
+                    attacks_by_div[note_div] = {
+                        "div": note_div,
+                        "dur": dur,
+                        "rest": False,
+                        "tie_stop": False,
                         "x": x_val,
                     }
-                )
-            cursor += dur
+                elif x_val is not None and (attacks_by_div[note_div]["x"] is None or x_val < attacks_by_div[note_div]["x"]):
+                    attacks_by_div[note_div]["x"] = x_val
+            elif is_rest and note_div not in attacks_by_div:
+                attacks_by_div[note_div] = {
+                    "div": note_div,
+                    "dur": dur,
+                    "rest": True,
+                    "tie_stop": False,
+                    "x": x_val,
+                }
 
+            if not is_chord:
+                cursor += dur
+
+        sorted_attacks = [attacks_by_div[d] for d in sorted(attacks_by_div.keys())]
         out[number] = {
             "divs": _measure_divs(beats, beat_type, divisions),
             "width": width,
-            "attacks": attacks,
+            "attacks": sorted_attacks,
         }
     return out
+
 
 
 def _anchors_from_attacks(info: dict) -> List[Tuple[float, float]]:
@@ -163,14 +189,20 @@ def load_midi_onsets(midi_path: Optional[str]) -> List[float]:
 
 
 def _x_frac_of(attack: dict, info: dict) -> float:
-    width = float(info.get("width") or 0.0)
-    xs = [a["x"] for a in info.get("attacks") or [] if a.get("x") is not None]
-    x0 = min(xs) if xs else 0.0
-    x_span = (width - x0) if width > x0 + 1 else 0.0
-    if attack.get("x") is not None and x_span > 1:
-        return min(max((float(attack["x"]) - x0) / x_span, 0.0), 1.0)
     divs = max(1, int(info.get("divs") or 1))
-    return min(max(attack["div"] / divs, 0.0), 1.0)
+    t_frac = min(max(attack.get("div", 0) / divs, 0.0), 1.0)
+    attacks = info.get("attacks") or []
+    xs = [float(a["x"]) for a in attacks if a.get("x") is not None and not a.get("rest")]
+    if not xs or attack.get("x") is None or attack.get("rest"):
+        return t_frac
+    min_x = min(xs)
+    max_x = max(xs)
+    if max_x <= min_x:
+        return 0.15 + t_frac * 0.70
+    norm = (float(attack["x"]) - min_x) / (max_x - min_x)
+    pad_left = 0.08
+    pad_right = 0.12
+    return min(max(pad_left + norm * (1.0 - pad_left - pad_right), 0.0), 1.0)
 
 
 def _anchors_hybrid(info: dict, meas_start: float, meas_dur: float, midi_on: List[float]) -> List[Tuple[float, float]]:
@@ -234,6 +266,8 @@ def _anchors_hybrid(info: dict, meas_start: float, meas_dur: float, midi_on: Lis
     timed.sort(key=lambda p: (p[0], p[1]))
     pts: List[Tuple[float, float]] = [(0.0, 0.0)]
     for tf, xf in timed:
+        if pts:
+            xf = max(xf, pts[-1][1])
         if tf <= 1e-6:
             pts[0] = (0.0, xf)
         elif abs(pts[-1][0] - tf) < 1e-4:
@@ -252,37 +286,83 @@ def _anchors_from_score(
     pdf_xs: Optional[List[int]],
     bar_left: Optional[int],
     bar_right: Optional[int],
+    meas_start: float = 0.0,
+    meas_dur: float = 0.0,
+    midi_on: Optional[List[float]] = None,
 ) -> List[Tuple[float, float]]:
-    """시각 = 악보에 적힌 음표 길이(누적 박), 가로 = PDF 음머리 또는 기보 default-x."""
+    """시각 = 실제 MIDI 연주 시각 (우선) 또는 악보 누적 박, 가로 = PDF 기보 위치 (우선) 또는 MusicXML."""
     attacks = [a for a in (info.get("attacks") or []) if not a.get("tie_stop")]
+    attacks.sort(key=lambda a: a.get("div", 0))
     if not attacks:
         return [(0.0, 0.0), (1.0, 1.0)]
     divs = max(1, int(info.get("divs") or 1))
-    notes = [a for a in attacks if not a.get("rest")]
-    use_pdf = (
-        pdf_xs
-        and bar_left is not None
-        and bar_right is not None
-        and bar_right > bar_left + 4
-        and len(pdf_xs) == len(notes)
-    )
-    span = float((bar_right - bar_left) if use_pdf else 1)
-    pts: List[Tuple[float, float]] = [(0.0, 0.0)]
-    ni = 0
+
+    notes_only = [a for a in attacks if not a.get("rest")]
+    span = float(bar_right - bar_left) if (bar_left is not None and bar_right is not None and bar_right > bar_left) else 0.0
+
+    # MIDI와 XML 매칭을 위한 준비
+    midis = []
+    if midi_on and meas_dur > 1e-6:
+        lo, hi = meas_start - 0.02, meas_start + meas_dur - 0.015
+        midis = [t for t in midi_on if lo <= t < hi]
+
+    timed_visuals = []
+    used_m = set()
+    used_pdf = set()
+    max_pair_dt = 0.12
+
     for a in attacks:
-        t_frac = min(max(a["div"] / divs, 0.0), 1.0)
-        if a.get("rest") or not use_pdf:
+        xml_t_frac = min(max(a["div"] / divs, 0.0), 1.0)
+        t_xml = meas_start + xml_t_frac * meas_dur
+
+        # 가로 좌표 (X) 결정
+        if not a.get("rest") and pdf_xs and span > 0:
+            if len(pdf_xs) == len(notes_only):
+                note_idx = notes_only.index(a) if a in notes_only else 0
+                x_frac = (pdf_xs[note_idx] - bar_left) / span
+            else:
+                expected_x = bar_left + _x_frac_of(a, info) * span
+                cands = [(abs(px - expected_x), idx, px) for idx, px in enumerate(pdf_xs) if idx not in used_pdf]
+                if cands:
+                    cands.sort()
+                    best_dt, best_idx, best_px = cands[0]
+                    if best_dt < span * 0.4:
+                        used_pdf.add(best_idx)
+                        x_frac = (best_px - bar_left) / span
+                    else:
+                        x_frac = _x_frac_of(a, info)
+                else:
+                    x_frac = _x_frac_of(a, info)
+        else:
             x_frac = _x_frac_of(a, info)
-        else:
-            x_frac = min(max((pdf_xs[ni] - bar_left) / span, 0.0), 1.0)
-            ni += 1
         x_frac = min(max(x_frac, 0.0), 1.0)
-        if t_frac <= 1e-6:
-            pts[0] = (0.0, x_frac)
-        elif abs(pts[-1][0] - t_frac) < 1e-6:
-            pts[-1] = (t_frac, x_frac)
+
+        # 시간 좌표 (T) 결정
+        t_frac = xml_t_frac
+        if not a.get("rest") and midis:
+            cand = [(abs(t - t_xml), idx, t) for idx, t in enumerate(midis) if idx not in used_m]
+            if cand:
+                cand.sort()
+                dt, idx, t = cand[0]
+                if dt <= max_pair_dt:
+                    used_m.add(idx)
+                    t_frac = min(max((t - meas_start) / meas_dur, 0.0), 0.999)
+
+        timed_visuals.append((t_frac, x_frac))
+
+    timed_visuals.sort(key=lambda p: (p[0], p[1]))
+
+    pts: List[Tuple[float, float]] = [(0.0, 0.0)]
+    for tf, xf in timed_visuals:
+        if pts:
+            xf = max(xf, pts[-1][1])
+        if tf <= 1e-6:
+            pts[0] = (0.0, xf)
+        elif abs(pts[-1][0] - tf) < 1e-4:
+            pts[-1] = (tf, xf)
         else:
-            pts.append((t_frac, x_frac))
+            pts.append((tf, xf))
+
     if pts[-1][0] < 0.999:
         pts.append((1.0, 1.0))
     else:
@@ -297,18 +377,17 @@ def attach_measure_anchors(
     log_callback=None,
     midi_path: Optional[str] = None,
     stitched_img: Optional[Any] = None,
+    pdf_path: Optional[str] = None,
 ) -> None:
-    """마디 앵커: 박자는 악보 기보 길이, 가로는 PDF 음머리(개수가 맞을 때).
-
-    MIDI는 쓰지 않는다. 연주 시각이 아니라 악보에 적힌 박자가 시계다.
-    """
-    del midi_path
+    """마디 앵커: 박자는 악보 기보 길이 + MIDI 보정, 가로는 PDF 음머리 + XML 보정."""
+    midi_on = load_midi_onsets(midi_path)
     parsed = parse_lead_attacks(musicxml_path) if musicxml_path else {}
     pdf_map: Dict[int, List[int]] = {}
-    if layout and layout.systems and stitched_img is not None:
+    if layout and layout.systems and (stitched_img is not None or pdf_path is not None):
         from engine.pdf_notes import collect_measure_note_xs
 
-        pdf_map = collect_measure_note_xs(stitched_img, layout)
+        gray = stitched_img if stitched_img is not None else np.zeros((10, 10), dtype=np.uint8)
+        pdf_map = collect_measure_note_xs(gray, layout, pdf_path=pdf_path)
 
     used = 0
     pdf_used = 0
@@ -321,17 +400,23 @@ def attach_measure_anchors(
         if info and info.get("attacks"):
             heads = pdf_map.get(meas.number) or []
             notes = [a for a in info["attacks"] if not a.get("rest") and not a.get("tie_stop")]
-            if heads and len(heads) == len(notes):
+            if heads:
                 pdf_used += 1
-            meas.anchors = _anchors_from_score(info, heads, left, right)
+            meas.anchors = _anchors_from_score(
+                info, heads, left, right,
+                meas_start=meas.start_sec,
+                meas_dur=meas.duration_sec,
+                midi_on=midi_on
+            )
             used += 1
         else:
             meas.anchors = [(0.0, 0.0), (1.0, 1.0)]
     if log_callback:
         log_callback(
-            f"[음표 앵커] 악보 기보 박자 {used}/{timeline.n_measures}마디"
-            f", PDF 음머리 좌표 {pdf_used}마디 (개수 일치 시만)"
+            f"[음표 앵커] 악보 기보 박자(+MIDI 연동) {used}/{timeline.n_measures}마디"
+            f", PDF 음머리 좌표 {pdf_used}마디"
         )
+
 
 
 def interpolate_frac(anchors: List[Tuple[float, float]], t_frac: float) -> float:

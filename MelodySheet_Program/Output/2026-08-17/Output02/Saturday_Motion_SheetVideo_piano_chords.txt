@@ -1,0 +1,66 @@
+피아노 화음 추출 (MIDI Piano RH+LH)
+  기보 코드 51마디 · 대조 51 · 구성음 일치 36 (71%) · 루트 일치 40 (78%)
+  불일치 예: m3:G6≠Am7, m21:Gsus2≠G, m23:G6≠C, m25:Gbm7b5≠C, m29:Dsus4≠D, m30:Bbsus2≠Bb, m31:Bbsus4≠Bb, m32:Bbsus2≠Bb
+
+마디  기보        추출        박별
+   1   -          -          - - - -
+   2 = G          Gmaj7      - - - D
+   3 x Am7        G6         D - - D
+   4   -          Gmaj7      B - G5 G5
+   5   -          Dsus4      - Dsus4 - -
+   6   -          G          G G G G
+   7 = C          C          C5 C5 C5 C5
+   8 = G          G          G G G G
+   9 = C          C          C5 C5 C5 Gb
+  10 = Em         Em         Em E5 Em E5
+  11 = Bm         Bm         B5 Bm Bm Bm
+  12 = C          C6         C C C C
+  13 = D          D7         G5 D D D
+  14 = G          G          G - G G
+  15 = C          C          C5 C5 C5 C5
+  16 = G          G          G G - -
+  17 = Bm         Bm         B5 Bm Bm Bm
+  18 = C          C          C C C C
+  19 = Bm         Bm         B5 Bm Bm Bm
+  20 = D7         D7         Dsus2 D Csus2 D
+  21 x G          Gsus2      G G G G
+  22   -          Gmaj7      - G G G
+  23 x C          G6         G5 C5 C5 E5
+  24 = G          Gmaj7      Em G G G
+  25 x C          Gbm7b5     G5 C5 C5 Gbm
+  26 = Em         Em         Em Em - Em
+  27 = Bm         Gmaj7      G Bm Bm B
+  28 = C          C          C C C C
+  29 x D          Dsus4      Csus2 C Csus2 Dsus4
+  30 x Bb         Bbsus2     Bbm Bbm Bb Bb
+  31 x Bb         Bbsus4     Eb5 Bb C F5
+  32 x Bb         Bbsus2     Bbm Bbm Bb Bb
+  33 = Dm7        Dm7        Dm7 D D Bb
+  34 = Eb         Ebmaj7     Eb - G G5
+  35 = Dm         Bbmaj7     Dm Dm D5 A
+  36 = Cm7        Cm7        Cm Cm - C
+  37 x F          Fsus2      F F F -
+  38 x G          Bm7        G G G D
+  39 x C          G6         G5 C C G
+  40 = G          Gmaj7      G G G Gmaj7
+  41 x C          Csus2      G5 C C D
+  42 = Em         Em         E5 Em Em Em
+  43 = Bm         Bm         Bm B Bm B
+  44   -          C          C5 C - C
+  45 = D          D7         Csus2 - D D
+  46 = G          G6         A5 E5 B Em
+  47 x C          Csus2      E C5 Gsus4 -
+  48 = G          G6         Em B - Gsus4
+  49 = Bm         Gmaj7      - G G G5
+  50 = C          C          C C5 C C
+  51 = G          Em7        - G G G
+  52 = D7         D7         Am A Csus2 E
+  53 = G          Em7        E B - -
+  54 x C          D7         C C D C
+  55 = G          Gmaj7      C - - G5
+  56 = G          Gmaj7      D - - G5
+  57 x G          Gsus2      - G - -
+  58   -          G          - - - -
+  59   -          -          - - - -
+
+참고: 피아노 MIDI(음원에서 분리 전사된 두 손)만 사용. 현악기는 제외.

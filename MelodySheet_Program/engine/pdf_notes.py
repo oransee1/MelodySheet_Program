@@ -1,11 +1,13 @@
 """PDF 악보에서 음머리 X와 페이지 템포 표기를 읽는다."""
 from __future__ import annotations
 
+import os
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
 from engine.score_layout import ScoreLayout
+
 
 
 def detect_note_xs(gray: np.ndarray, x0: int, x1: int, y0: int, y1: int) -> List[int]:
@@ -49,9 +51,58 @@ def detect_note_xs(gray: np.ndarray, x0: int, x1: int, y0: int, y1: int) -> List
     return merged
 
 
-def collect_measure_note_xs(gray: np.ndarray, layout: ScoreLayout) -> Dict[int, List[int]]:
-    """마디 번호 → PDF 음머리 X 목록."""
+def collect_measure_note_xs(
+    gray: np.ndarray,
+    layout: ScoreLayout,
+    pdf_path: Optional[str] = None,
+) -> Dict[int, List[int]]:
+    """마디 번호 → PDF 음머리 X 목록 (PyMuPDF 벡터 글리프 우선 + CV 형태학 보조)."""
     out: Dict[int, List[int]] = {}
+
+    # 1. PyMuPDF 벡터 폰트(Emmentaler 등) 글리프에서 정확한 음표 X 좌표 추출
+    if pdf_path and os.path.isfile(pdf_path):
+        try:
+            import json
+            import pymupdf
+            doc = pymupdf.open(pdf_path)
+            scale = layout.dpi / 72.0
+            glyph_map: Dict[int, List[Tuple[float, float]]] = {}
+            for pi, page in enumerate(doc):
+                page_top = layout.page_y_positions[pi] if pi < len(layout.page_y_positions) else 0
+                data = json.loads(page.get_text("rawjson"))
+                for b in data.get("blocks", []):
+                    for l in b.get("lines", []):
+                        for s in l.get("spans", []):
+                            if "Emmentaler" in s.get("font", ""):
+                                for c in s.get("chars", []):
+                                    bbox = [x * scale for x in c["bbox"]]
+                                    cx = (bbox[0] + bbox[2]) / 2.0
+                                    cy = page_top + (bbox[1] + bbox[3]) / 2.0
+                                    glyph_map.setdefault(pi, []).append((cx, cy))
+            doc.close()
+
+            for sys in layout.systems:
+                pi = sys.page_index
+                p_glyphs = glyph_map.get(pi, [])
+                ty0 = sys.staves[0].y0 if sys.staves else sys.y0
+                ty1 = sys.staves[-1].y1 if sys.staves else sys.y1
+                for num in range(sys.start_measure, sys.end_measure + 1):
+                    left, right = sys.measure_x_range(num)
+                    m_glyphs = [cx for cx, cy in p_glyphs if left <= cx < right and ty0 - 15 <= cy <= ty1 + 15]
+                    if m_glyphs:
+                        xs = sorted(list(set(int(round(x)) for x in m_glyphs)))
+                        merged = []
+                        for x in xs:
+                            if not merged or x - merged[-1] > 8:
+                                merged.append(x)
+                            else:
+                                merged[-1] = (merged[-1] + x) // 2
+                        out[num] = merged
+                    else:
+                        out[num] = []
+        except Exception:
+            pass
+
     if gray.ndim == 3:
         gray = gray.mean(axis=2).astype(np.uint8)
     for sys in layout.systems:
@@ -61,20 +112,24 @@ def collect_measure_note_xs(gray: np.ndarray, layout: ScoreLayout) -> Dict[int, 
             h = max(1, sys.y1 - sys.y0)
             y0, y1 = sys.y0 + int(h * 0.08), sys.y0 + int(h * 0.40)
         for num in range(sys.start_measure, sys.end_measure + 1):
-            left, right = sys.measure_x_range(num)
-            out[num] = detect_note_xs(gray, left, right, y0 - 8, y1 + 8)
+            if num not in out or not out[num]:
+                left, right = sys.measure_x_range(num)
+                cv_notes = detect_note_xs(gray, left, right, y0 - 8, y1 + 8)
+                if cv_notes:
+                    out[num] = cv_notes
     return out
+
 
 
 def extract_pdf_tempos(pdf_path: str) -> List[Tuple[int, int, float]]:
     """페이지에서 '= 115' 형태 메트로놈. (page_index, bpm, pdf_y)."""
     import os
-    import pymupdf as fitz
+    import pymupdf
 
     found: List[Tuple[int, int, float]] = []
     if not os.path.isfile(pdf_path):
         return found
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     try:
         for pi, page in enumerate(doc):
             words = page.get_text("words")

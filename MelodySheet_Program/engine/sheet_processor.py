@@ -11,18 +11,18 @@ if sys.platform == "win32" and hasattr(os, "add_dll_directory"):
                 except Exception:
                     pass
 
-import pymupdf as fitz  # PyMuPDF
+import pymupdf  # PyMuPDF
 from PIL import Image
 import io
 
 def convert_pdf_to_image(pdf_path: str, page_num: int = 0, dpi: int = 300) -> Image.Image:
     """PDF 악보의 특정 페이지를 지정한 DPI의 PIL Image로 변환합니다."""
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     if page_num >= len(doc):
         page_num = 0
     page = doc.load_page(page_num)
     zoom = dpi / 72
-    mat = fitz.Matrix(zoom, zoom)
+    mat = pymupdf.Matrix(zoom, zoom)
     pix = page.get_pixmap(matrix=mat, alpha=False)
     img_data = pix.tobytes("png")
     doc.close()
@@ -33,13 +33,13 @@ def convert_pdf_to_multi_page_image(pdf_path: str, dpi: int = 200):
     PDF 악보 전체 페이지(1~N페이지)를 렌더링하여
     하나의 긴 세로 악보 캔버스 이미지(Continuous Sheet Canvas)로 합치고 각 페이지 Y 위치를 반환합니다.
     """
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     images = []
     total_height = 0
     max_width = 0
     
     zoom = dpi / 72
-    mat = fitz.Matrix(zoom, zoom)
+    mat = pymupdf.Matrix(zoom, zoom)
     
     for page in doc:
         pix = page.get_pixmap(matrix=mat, alpha=False)

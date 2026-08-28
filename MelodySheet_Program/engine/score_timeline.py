@@ -117,7 +117,18 @@ def build_timeline_from_musicxml(path: str) -> Optional[ScoreTimeline]:
     except ET.ParseError:
         return None
 
-    part = root.find("part")
+    part = None
+    part_list = root.find("part-list")
+    if part_list is not None:
+        for score_part in part_list.findall("score-part"):
+            pname = score_part.findtext("part-name") or ""
+            if "piano" in pname.lower() or "피아노" in pname:
+                pid = score_part.get("id")
+                part = root.find(f"part[@id='{pid}']")
+                break
+    if part is None:
+        part = root.find("part")
+
     if part is None:
         return None
     measures = part.findall("measure")
@@ -225,10 +236,35 @@ def build_timeline_from_midi(path: str, n_measures: Optional[int] = None) -> Opt
 
     times, tempi = pm.get_tempo_changes()
     bpm0 = float(tempi[0]) if len(tempi) else 120.0
+    downbeats = [float(x) for x in pm.get_downbeats()]
     n = n_measures
     if not n:
-        downbeats = pm.get_downbeats()
         n = max(1, len(downbeats) - 1) if len(downbeats) > 1 else max(1, int(round(end / (4 * 60.0 / bpm0))))
+
+    # 다운비트가 있으면 그 간격이 마디다. 피아노 시작(t=0)부터 한 칸씩 간다.
+    # midi-even은 잔여 길이를 모든 마디에 나눠 초반 박이 조금씩 밀린다.
+    if len(downbeats) >= 2:
+        beats, beat_type = 4, 4
+        if pm.time_signature_changes:
+            ts0 = pm.time_signature_changes[0]
+            beats, beat_type = int(ts0.numerator), int(ts0.denominator)
+        spans = []
+        limit = min(n, len(downbeats) - 1)
+        for i in range(limit):
+            t0, t1 = downbeats[i], downbeats[i + 1]
+            dur = max(t1 - t0, 1e-6)
+            bpm = beats * (4.0 / max(beat_type, 1)) * (60.0 / dur)
+            spans.append(MeasureSpan(number=i + 1, start_sec=t0, duration_sec=dur, tempo_bpm=bpm))
+        if spans:
+            last = spans[-1]
+            if end > last.start_sec + last.duration_sec + 0.05:
+                spans[-1] = MeasureSpan(
+                    number=last.number,
+                    start_sec=last.start_sec,
+                    duration_sec=end - last.start_sec,
+                    tempo_bpm=last.tempo_bpm,
+                )
+            return ScoreTimeline(measures=spans, source=f"midi-downbeats:{os.path.basename(path)}")
 
     # MIDI 템포 이벤트가 하나뿐이면 실제 연주 길이를 마디 수에 균등 분배한다.
     # (Klangio MIDI는 템포 변화를 노트 시각에 구워 넣고 메타 템포는 초기를 유지하는 경우가 있다.)

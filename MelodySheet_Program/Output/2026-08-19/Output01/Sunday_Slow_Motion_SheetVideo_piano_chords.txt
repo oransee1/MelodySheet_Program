@@ -1,0 +1,109 @@
+피아노 화음 추출 (MIDI Piano RH+LH)
+  기보 코드 74마디 · 대조 74 · 구성음 일치 32 (43%) · 루트 일치 35 (47%)
+  불일치 예: m1:Fsus4≠Bbm7, m2:Ebsus2≠Eb, m6:Ebsus2≠Eb, m9:Fsus4≠Bb, m10:Ebsus2≠Eb, m12:Gm≠F, m13:Fsus4≠F, m16:Ebsus2≠Gm7
+
+마디  기보        추출        박별
+   1 x Bbm7       Fsus4      - - - -
+   2 x Eb         Ebsus2     - - Eb5 -
+   3   -          Bb5        Bb5 - - -
+   4   -          -          - - - -
+   5   -          Bbsus2     - - - -
+   6 x Eb         Ebsus2     - - Eb5 Eb
+   7   -          Eb5        Eb5 Eb5 Eb5 Eb5
+   8   -          Eb5        Eb5 Eb5 Eb5 Eb5
+   9 x Bb         Fsus4      - - Dm Bbm
+  10 x Eb         Ebsus2     Eb5 Gm - -
+  11   -          -          - - - -
+  12 x F          Gm         - - G5 Gm
+  13 x F          Fsus4      - C - -
+  14   -          -          - - - -
+  15 = Gm         Gm7        G - - Bbm
+  16 x Gm7        Ebsus2     - - Eb Eb
+  17 = Gm         Ebmaj7     Eb Eb Eb -
+  18 x Dm         Gm7        - - - Dm
+  19 = Eb         Ebmaj7     Dm Eb Eb Eb
+  20 x Cm         Eb         Eb5 Eb5 Eb5 C5
+  21 x Gm         Dm7        Eb - A -
+  22 x Bb         Gm         G5 - Gm Gm
+  23 = Gm         Gm7        Bb5 G5 Bb5 -
+  24 x F          Fsus4      F5 F5 - -
+  25   -          Bb         - - - -
+  26 = Gm         Gm7        - - Gm Gm
+  27 x Dm         Gm7        - - Dm Dm
+  28   -          Eb         Eb Eb Eb Eb
+  29 = Gm         Ebmaj7     Eb Eb - G5
+  30 x Cm7        Bbmaj7     - Bbm Dm F
+  31 = Eb         Eb6        Eb Eb Cm -
+  32 x F7         Cm7        - - Cm A
+  33 = F7         Adim       - - Adim A
+  34 x Bb         Gm         G5 - Gm Gm
+  35 = Gm7        Gm7        Bb5 G5 - -
+  36 x Bb         Fsus4      F - - -
+  37   -          Bb         - - - -
+  38 x Dm7        Ebmaj7     F F5 Eb Eb
+  39 x F7         Eb6        Eb Gm Gm Bb
+  40 = Bb         Bbmaj7     Adim A Bbm -
+  41   -          Bb         - - - Bbm
+  42 = Eb         Ebmaj7     Bb5 Bbm Gm Gm
+  43 x A          Cm7        Gm Gm - -
+  44 x D7         Gsus2      - D5 Gm -
+  45 x Bb         Gm         - - - -
+  46 = Eb         Ebmaj7     Bb Bb5 Eb Eb
+  47   -          Eb         Eb Eb5 - -
+  48 x F          Fsus4      - Eb Bb5 Bb5
+  49 = F          F7         - - C A
+  50   -          F          - - - -
+  51 = Bb         Bb         - Bb5 - -
+  52 = Bb         Bb         - - - -
+  53 x Bb         Ebsus2     Eb5 Eb - -
+  54 x Eb         Bb         - - - -
+  55 = Gm         Gm         Gm G5 - G5
+  56 = Eb         Ebmaj7     Dm - Eb Eb5
+  57 x Bb         Eb         - Eb5 - -
+  58 x Dm         Ebmaj7     Dm Bbm Eb Eb5
+  59 x Bb         Ebmaj7     - - - -
+  60 x F          Fsus4      Dm Bbm F5 Bb5
+  61   -          Fsus4      - - - -
+  62 = Bb         Bb         - - - -
+  63   -          Bb         Bb5 - - -
+  64 x Eb         Ebsus2     - - - Eb5
+  65   -          Bbsus4     - - - -
+  66 = Gm         Gm7        F A - Gm
+  67 = F          F6         - Gm - F
+  68 = Eb         Eb6        F Eb - Eb5
+  69 x Bb         Ebmaj7     - Eb - Dm
+  70 = Eb         Eb         - Eb - Eb5
+  71 x Bb         Ebsus2     - - - Dm
+  72 x F          Fsus4      - F5 - F5
+  73   -          Fsus4      - F - -
+  74 = Gm         Gm7        - Gm G5 G
+  75 x Dm         Ebmaj7     G5 Dm Dm Eb
+  76   -          Eb         Eb - - -
+  77 x Dm         Ebmaj7     - Gm - Bb
+  78 x Eb         Adim       - - - Eb5
+  79   -          Eb         Cm - - -
+  80 x Ab         Ebmaj7     - - - Bb
+  81 = Gm         Gm         - Ab - G5
+  82 = Gm7        Bb         - - - Bb5
+  83 = F          F6         - G - F5
+  84 = Gm7        Gm7        F5 Gm - -
+  85 x Bb         Gm         - - - -
+  86 = Eb         Eb         - - - -
+  87 x Bb         Eb         - - - Eb
+  88   -          Dm         - Dm - -
+  89 = F          F5         - - - -
+  90   -          -          - - - -
+  91 x Bb         Fsus4      - - Bb5 -
+  92 x Eb         Bbsus4     Bb5 - Eb5 Eb5
+  93   -          Eb         Eb Eb5 Eb5 Eb5
+  94 = Gm         Ebmaj7     Eb5 Eb5 - -
+  95 = Bb         Gm7        G5 Gm Dm Bb5
+  96   -          A          - - - -
+  97 = Bb         Bbmaj7     - - Bb Bb
+  98   -          Bb         - Dm - -
+  99   -          Bbm        - - Bbm Bbm
+ 100   -          -          - - - -
+ 101   -          -          - - - -
+ 102   -          -          - - - -
+
+참고: 피아노 MIDI(음원에서 분리 전사된 두 손)만 사용. 현악기는 제외.

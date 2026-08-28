@@ -96,6 +96,10 @@ class SyncManager:
 
     def _system_y_offset(self, sys, viewport_h: int) -> float:
         sys_h = max(1, sys.y1 - sys.y0)
+        if sys.index == 0:
+            # 첫 번째 단은 제목과 작곡가를 보여주기 위해 가급적 화면 맨 위(페이지 y=0)부터 보여줍니다.
+            # 단, 시스템 하단이 잘리지 않도록 최소한의 스크롤만 허용합니다.
+            return max(0.0, float(sys.y1 - viewport_h + 40))
         return sys.y0 - (viewport_h - sys_h) / 2.0
 
     def _scroll_offset(self, t: float, sys, viewport_h: int) -> float:

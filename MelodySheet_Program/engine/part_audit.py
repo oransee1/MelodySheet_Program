@@ -36,7 +36,7 @@ class PartSpec:
 VIOLIN = PartSpec(
     key="violin",
     label="바이올린",
-    name_needles=("violin",),
+    name_needles=("violin", "바이올린", "vn"),
     name_exclude=("cello", "violoncello"),
     programs=(40,),
     fallback_part_id="P1",
@@ -47,7 +47,7 @@ VIOLIN = PartSpec(
 CELLO = PartSpec(
     key="cello",
     label="첼로",
-    name_needles=("cello", "violoncello"),
+    name_needles=("cello", "violoncello", "첼로", "vc"),
     name_exclude=(),
     programs=(42,),
     fallback_part_id="P2",
@@ -58,7 +58,7 @@ CELLO = PartSpec(
 BASS = PartSpec(
     key="bass",
     label="베이스",
-    name_needles=("double bass", "contrabass", "doublebass", "string bass", "bass"),
+    name_needles=("double bass", "contrabass", "doublebass", "string bass", "bass", "베이스", "콘트라베이스"),
     name_exclude=("bassoon", "clarinet", "trombone"),
     programs=(43,),
     fallback_part_id="P3",
@@ -219,6 +219,17 @@ def parse_part_score(
             name = (sp.findtext("part-name") or "") + " " + (sp.findtext("score-instrument/instrument-name") or "")
             if _name_matches(name, spec):
                 wanted_id = sp.get("id")
+                break
+            for mi in sp.findall("midi-instrument") + sp.findall("score-instrument"):
+                prog = mi.findtext("midi-program")
+                if prog:
+                    try:
+                        if (int(prog) - 1) in spec.programs:
+                            wanted_id = sp.get("id")
+                            break
+                    except ValueError:
+                        pass
+            if wanted_id:
                 break
     for p in root.findall("part"):
         if wanted_id and p.get("id") == wanted_id:

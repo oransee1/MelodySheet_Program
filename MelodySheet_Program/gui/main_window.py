@@ -4,8 +4,8 @@ from datetime import datetime
 from PyQt5.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QLineEdit, QPushButton, QComboBox, QFileDialog, QProgressBar,
                              QTextEdit, QGroupBox, QMessageBox, QCheckBox)
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QFont
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QObject
+from PyQt5.QtGui import QFont, QTextCursor, QIcon
 from engine.video_renderer import VideoRenderer
 
 DARK_STYLE = """
@@ -98,7 +98,7 @@ class RenderThread(QThread):
     log_signal = pyqtSignal(str)
     finished_signal = pyqtSignal(bool, str)
 
-    def __init__(self, pdf_path, audio_path, output_path, title, artist, sync_mode, midi_path=None, fps=120):
+    def __init__(self, pdf_path, audio_path, output_path, title, artist, sync_mode, midi_path=None, musicxml_path=None, fps=120):
         super().__init__()
         self.pdf_path = pdf_path
         self.audio_path = audio_path
@@ -107,6 +107,7 @@ class RenderThread(QThread):
         self.artist = artist
         self.sync_mode = sync_mode
         self.midi_path = midi_path
+        self.musicxml_path = musicxml_path
         self.fps = fps
 
     def run(self):
@@ -122,12 +123,20 @@ class RenderThread(QThread):
                 artist=self.artist,
                 sync_mode=self.sync_mode,
                 midi_path=self.midi_path,
+                musicxml_path=self.musicxml_path,
                 fps=self.fps,
                 progress_callback=lambda p: self.progress_signal.emit(p),
                 log_callback=lambda msg: self.log_signal.emit(msg)
             )
             
-            self.log_signal.emit("8페이지 악보 전체 레스터라이징 및 MIDI 정밀 싱크 분석 중...")
+            try:
+                import pymupdf
+                with pymupdf.open(self.pdf_path) as doc:
+                    page_count = len(doc)
+            except Exception:
+                page_count = "여러 "
+                
+            self.log_signal.emit(f"{page_count}페이지 악보 전체 레스터라이징 및 MIDI 정밀 싱크 분석 중...")
             renderer.render()
             
             self.log_signal.emit(f"렌더링 완료! 저장 경로: {self.output_path}")
@@ -137,15 +146,36 @@ class RenderThread(QThread):
             self.finished_signal.emit(False, str(e))
 
 
+class LogStream(QObject):
+    new_text = pyqtSignal(str)
+
+    def write(self, text):
+        if text.strip():
+            self.new_text.emit(str(text))
+
+    def flush(self):
+        pass
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("MelodySheet Video Generator - 악보 시각화 동영상 제작기")
+        
+        icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "icon.png")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+            
         self.resize(820, 800)
         self.setStyleSheet(DARK_STYLE)
         
         self.init_ui()
         self.auto_fill_default_paths()
+        
+        # 시스템 표준 출력(print 등) 및 에러를 로그 창으로 리다이렉트
+        self.log_stream = LogStream()
+        self.log_stream.new_text.connect(self.log)
+        sys.stdout = self.log_stream
+        sys.stderr = self.log_stream
 
     def init_ui(self):
         main_widget = QWidget()
@@ -154,7 +184,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(20, 20, 20, 20)
 
         # Title Banner
-        title_label = QLabel("🎵 MelodySheet Video Generator")
+        title_label = QLabel("<span style='color: #9acd32;'>♫</span> MelodySheet Video Generator")
         title_font = QFont()
         title_font.setPointSize(18)
         title_font.setBold(True)
@@ -200,9 +230,19 @@ class MainWindow(QMainWindow):
         row_midi.addWidget(btn_browse_midi)
         layout_files.addLayout(row_midi)
 
+        # Optional MusicXML File
+        row_xml = QHBoxLayout()
+        row_xml.addWidget(QLabel("옵션 MusicXML (.musicxml):"))
+        self.txt_xml = QLineEdit()
+        btn_browse_xml = QPushButton("찾아보기")
+        btn_browse_xml.clicked.connect(self.browse_xml)
+        row_xml.addWidget(self.txt_xml)
+        row_xml.addWidget(btn_browse_xml)
+        layout_files.addLayout(row_xml)
+
         # Save Path
         row_out = QHBoxLayout()
-        row_out.addWidget(QLabel("저장 경로 (.mp4):"))
+        row_out.addWidget(QLabel("저장 폴더:"))
         self.txt_output = QLineEdit()
         btn_browse_out = QPushButton("찾아보기")
         btn_browse_out.clicked.connect(self.browse_output)
@@ -304,46 +344,107 @@ class MainWindow(QMainWindow):
             named(input_today, ".mid"),
             named(downloads_dir, ".mid"),
         ])
+        default_xml = self._first_existing([
+            named(input_01, ".musicxml"),
+            named(input_01, ".xml"),
+            named(input_today, ".musicxml"),
+            named(input_today, ".xml"),
+        ])
 
-        output_dir = os.path.join(base_dir, "Output", today_str)
+        if getattr(sys, 'frozen', False):
+            base_dir = os.path.dirname(sys.executable)
+        else:
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            
+        output_dir = os.path.join(base_dir, "Output")
+        input_data_dir = os.path.join(base_dir, "Input_Data")
         os.makedirs(output_dir, exist_ok=True)
-        default_output = os.path.join(output_dir, "Sunday_Slow_Motion_SheetVideo.mp4")
+        os.makedirs(input_data_dir, exist_ok=True)
+        default_output = output_dir
 
         if default_audio:
             self.txt_audio.setText(default_audio)
+            self.txt_title.setText(os.path.splitext(os.path.basename(default_audio))[0])
+            self.txt_midi.setText(os.path.splitext(default_audio)[0] + ".mid")
         if default_sheet:
             self.txt_sheet.setText(default_sheet)
-        if default_midi:
+            self.extract_artist_from_pdf(default_sheet)
+        if default_midi and not default_audio:
             self.txt_midi.setText(default_midi)
+        if default_xml:
+            self.txt_xml.setText(default_xml)
+        elif default_audio:
+            self.txt_xml.setText(os.path.splitext(default_audio)[0] + ".musicxml")
         self.txt_output.setText(default_output)
 
     def browse_audio(self):
         path, _ = QFileDialog.getOpenFileName(self, "음원 파일 선택", "", "Audio Files (*.mp3 *.wav)")
         if path:
             self.txt_audio.setText(path)
+            self.txt_title.setText(os.path.splitext(os.path.basename(path))[0])
+            self.txt_midi.setText(os.path.splitext(path)[0] + ".mid")
+            self.txt_xml.setText(os.path.splitext(path)[0] + ".musicxml")
 
     def browse_sheet(self):
         path, _ = QFileDialog.getOpenFileName(self, "악보 파일 선택", "", "Sheet Files (*.pdf *.png *.jpg)")
         if path:
             self.txt_sheet.setText(path)
+            self.extract_artist_from_pdf(path)
+
+    def extract_artist_from_pdf(self, path):
+        if not path.lower().endswith('.pdf'):
+            return
+        try:
+            import pymupdf
+            doc = pymupdf.open(path)
+            if len(doc) > 0:
+                page = doc[0]
+                blocks = page.get_text("blocks")
+                width = page.rect.width
+                height = page.rect.height
+                
+                candidates = []
+                for b in blocks:
+                    x0, y0, x1, y1, text, block_no, block_type = b
+                    if block_type != 0:
+                        continue
+                    if y0 < height * 0.3 and x0 > width * 0.5:
+                        clean_text = text.strip()
+                        if len(clean_text) >= 2 and any(c.isalpha() for c in clean_text):
+                            candidates.append((y0, clean_text))
+                
+                if candidates:
+                    candidates.sort(key=lambda x: x[0])
+                    self.txt_artist.setText(candidates[0][1])
+        except Exception as e:
+            print(f"PDF parsing error: {e}")
 
     def browse_midi(self):
         path, _ = QFileDialog.getOpenFileName(self, "MIDI 파일 선택", "", "MIDI Files (*.mid *.midi *.musicxml *.gp5 *.ly)")
         if path:
             self.txt_midi.setText(path)
 
+    def browse_xml(self):
+        path, _ = QFileDialog.getOpenFileName(self, "MusicXML 파일 선택", "", "MusicXML Files (*.musicxml *.xml)")
+        if path:
+            self.txt_xml.setText(path)
+
     def browse_output(self):
-        path, _ = QFileDialog.getSaveFileName(self, "저장 비디오 경로", "", "Video Files (*.mp4)")
+        current_dir = self.txt_output.text().strip()
+        path = QFileDialog.getExistingDirectory(self, "저장 폴더 선택", current_dir)
         if path:
             self.txt_output.setText(path)
 
     def log(self, text: str):
         self.txt_log.append(text)
+        self.txt_log.moveCursor(QTextCursor.End)
+        self.txt_log.ensureCursorVisible()
 
     def start_rendering(self):
         audio_path = self.txt_audio.text().strip()
         sheet_path = self.txt_sheet.text().strip()
         midi_path = self.txt_midi.text().strip()
+        musicxml_path = self.txt_xml.text().strip()
         output_path = self.txt_output.text().strip()
         title = self.txt_title.text().strip()
         artist = self.txt_artist.text().strip()
@@ -357,6 +458,25 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "오류", "선택한 악보 파일이 존재하지 않습니다.")
             return
 
+        if os.path.isdir(output_path) or not output_path.lower().endswith('.mp4'):
+            safe_title = "".join([c for c in title if c.isalnum() or c in " -_"]).strip().replace(" ", "_")
+            if not safe_title:
+                safe_title = "Output"
+            
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            base_out_dir = os.path.join(output_path, today_str)
+            os.makedirs(base_out_dir, exist_ok=True)
+            
+            idx = 1
+            while True:
+                seq_dir = os.path.join(base_out_dir, f"Output{idx:02d}")
+                if not os.path.exists(seq_dir):
+                    break
+                idx += 1
+                
+            os.makedirs(seq_dir, exist_ok=True)
+            output_path = os.path.join(seq_dir, f"{safe_title}_SheetVideo.mp4")
+
         self.btn_render.setEnabled(False)
         self.progress_bar.setValue(0)
         self.log(f"--- 렌더링 개시: {title} ({artist}) · {fps}fps ---")
@@ -369,6 +489,7 @@ class MainWindow(QMainWindow):
             artist=artist,
             sync_mode=sync_mode,
             midi_path=midi_path if os.path.exists(midi_path) else None,
+            musicxml_path=musicxml_path if os.path.exists(musicxml_path) else None,
             fps=fps,
         )
         self.render_thread.progress_signal.connect(self.progress_bar.setValue)

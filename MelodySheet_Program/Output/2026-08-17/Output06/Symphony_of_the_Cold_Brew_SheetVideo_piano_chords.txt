@@ -1,0 +1,104 @@
+피아노 화음 추출 (MIDI Piano RH+LH)
+  기보 코드 62마디 · 대조 27 · 구성음 일치 7 (26%) · 루트 일치 9 (33%)
+  불일치 예: m2:Bbsus4≠Bb, m3:Bb≠Eb, m9:Bbsus4≠Bb, m11:Gm7≠Eb, m13:Bbm≠Gm7, m14:Bbm≠Gm, m27:Gm≠Eb, m29:Eb≠Gm7
+
+마디  기보        추출        박별
+   1 = Bb         Bb         - - - Bbm
+   2 x Bb         Bbsus4     - Eb5 Eb5 -
+   3 x Eb         Bb         - - - -
+   4   -          Eb         - - - -
+   5 = Gm7        Gm7        Eb - - -
+   6   -          Bbm        - - Bbm -
+   7 = Eb         Eb5        D - - -
+   8   -          Eb5        - Eb - -
+   9 x Bb         Bbsus4     - - Bbm -
+  10   -          Bb         - - - -
+  11 x Eb         Gm7        - - - -
+  12   -          Eb         - - Eb5 -
+  13 x Gm7        Bbm        - - - -
+  14 x Gm         Bbm        Gm - - Bbm
+  15 = Eb         Eb         - - - -
+  16   -          -          - - - -
+  17   Bb         -          - - - -
+  18   -          -          - - - -
+  19   Eb         -          - - - -
+  20   -          -          - - - -
+  21   Gm7        -          - - - -
+  22   -          G5         - - - -
+  23   Eb         -          - - - -
+  24   Bb         -          - - - -
+  25   -          -          - - - -
+  26   -          Eb5        - - - Eb5
+  27 x Eb         Gm         - - Gm Gm
+  28   -          Gm         - Gm Eb5 Bb
+  29 x Gm7        Eb         Eb - - -
+  30   F          -          - - - -
+  31   -          -          - - - -
+  32   -          -          - - - -
+  33   Gm         -          - - - -
+  34 = Eb         Eb         - - - -
+  35   Bb         -          - - - -
+  36   Dm7        -          - - - -
+  37   Gm         -          - - - -
+  38   Eb         -          - - - -
+  39   -          D5         - - - -
+  40 x F          D          D - - -
+  41   Bb         -          - - - -
+  42 = Bb         Bb         - - - Bb
+  43   Eb         -          - - - -
+  44   -          -          - - - -
+  45   Gm7        -          - - - -
+  46   Eb         -          - - - -
+  47   -          -          - - - -
+  48   -          -          - - - -
+  49   Bb         -          - - - -
+  50   -          -          - - - -
+  51   Eb         -          - - - -
+  52   -          -          - - - -
+  53   Gm         -          - - - -
+  54   F          -          - - - -
+  55 x Eb         Dm         - Dm - -
+  56   -          -          - - - -
+  57 = Bb         Bb5        - - - -
+  58 x Eb         Bb5        Bb5 Bb5 - Bb5
+  59   -          Ebsus2     Bb5 Bb5 - Eb
+  60 x Gm         Eb         Eb Eb Eb Eb
+  61 x Gm7        Ebmaj7     Eb Eb - -
+  62 x Eb         Bbm        - - - -
+  63   -          Eb         - - - -
+  64 x Bb         Eb5        Eb5 - - -
+  65   -          Eb5        - - - -
+  66   Eb         -          - - - -
+  67   -          Eb         - - - -
+  68 x Gm         Eb         - - - -
+  69   -          Eb         - Cm - Gm
+  70 x Eb         Gm         Gm Gm Gm Eb
+  71   -          Eb         Gm G5 - Eb
+  72   Eb         -          - - - -
+  73   -          Bb5        - - - Bb5
+  74   Bb         -          - - - -
+  75   -          -          - - - -
+  76   Gm         -          - - - -
+  77   -          Gm         - Gm - -
+  78 x Eb         G5         - - - -
+  79   -          -          - - - -
+  80   Bb         -          - - - -
+  81   -          -          - - - -
+  82 x Bb         Eb5        - - - Eb5
+  83   -          Eb         - - - Eb
+  84   Gm7        -          - - - -
+  85 x F          Eb         - Eb - -
+  86   Bb         -          - - - -
+  87   -          -          - - - -
+  88   Gm         -          - - - -
+  89   Eb         -          - - - -
+  90   F          -          - - - -
+  91   Dm7        -          - - - -
+  92   Gm         -          - - - -
+  93   Eb         -          - - - -
+  94   Bb         -          - - - -
+  95   F          -          - - - -
+  96   Bb         -          - - - -
+  97   -          -          - - - -
+
+참고: 피아노 MIDI(음원에서 분리 전사된 두 손)만 사용. 현악기는 제외.
