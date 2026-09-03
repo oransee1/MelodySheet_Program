@@ -149,12 +149,25 @@ class RenderThread(QThread):
 class LogStream(QObject):
     new_text = pyqtSignal(str)
 
+    def __init__(self, original_stream=None):
+        super().__init__()
+        self.original_stream = original_stream
+
     def write(self, text):
+        if self.original_stream:
+            try:
+                self.original_stream.write(text)
+            except Exception:
+                pass
         if text.strip():
             self.new_text.emit(str(text))
 
     def flush(self):
-        pass
+        if self.original_stream:
+            try:
+                self.original_stream.flush()
+            except Exception:
+                pass
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -171,11 +184,14 @@ class MainWindow(QMainWindow):
         self.init_ui()
         self.auto_fill_default_paths()
         
-        # 시스템 표준 출력(print 등) 및 에러를 로그 창으로 리다이렉트
-        self.log_stream = LogStream()
-        self.log_stream.new_text.connect(self.log)
-        sys.stdout = self.log_stream
-        sys.stderr = self.log_stream
+        # 시스템 표준 출력(print 등) 및 에러를 터미널과 로그 창 모두로 전달
+        self.log_stream_out = LogStream(sys.__stdout__)
+        self.log_stream_out.new_text.connect(self.log)
+        sys.stdout = self.log_stream_out
+
+        self.log_stream_err = LogStream(sys.__stderr__)
+        self.log_stream_err.new_text.connect(self.log)
+        sys.stderr = self.log_stream_err
 
     def init_ui(self):
         main_widget = QWidget()
